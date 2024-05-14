@@ -27,6 +27,8 @@ class MainActivity : AppCompatActivity() {
     private val pushList = mutableListOf<File>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+
+        /* ==================== view ==================== */
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         enableEdgeToEdge()
@@ -37,6 +39,8 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
+
+        /* ==================== lateinit ==================== */
         homeDir = Environment.getExternalStorageDirectory()
         appExternalStorageDir = getExternalFilesDir(null)!!
 
@@ -46,6 +50,8 @@ class MainActivity : AppCompatActivity() {
         cloneDir = File(appExternalStorageDir, "clone")
         cloneDir.mkdir()
 
+
+        /* ==================== request permissions ==================== */
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!Environment.isExternalStorageManager()) {
                 val intent = Intent(
@@ -63,6 +69,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+
+        /* ==================== MAIN ==================== */
         when (intent.action) {
             Intent.ACTION_SEND -> {
                 val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)!!
@@ -78,16 +86,24 @@ class MainActivity : AppCompatActivity() {
                 genData(null)
             }
         }
+
+        /* ==================== END OF onCreate() ==================== */
     }
 
     private fun genData(newUris: ArrayList<Uri>?) {
+
+        /* ========== fill pushList =========== */
         pushListFile.bufferedReader().use {
             it.forEachLine { line ->
                 pushList.add(File(line.trim()))
             }
         }
+
+        /* ========== return if no intent ========== */
         if (newUris == null) return
 
+
+        /* ========== extract filename from uri by contentResolver ========== */
         val hashSet = hashSetOf<Pair<String, Long>>()
         val deque = ArrayDeque<File>()
         deque.addLast(homeDir)
@@ -103,46 +119,62 @@ class MainActivity : AppCompatActivity() {
             cursor.close()
         }
 
+
+        /* ========== dfs by deque ========== */
         while (!deque.isEmpty()) {
             val dir = deque.removeLast()
             if (!dir.exists()) continue
             val files = dir.listFiles() ?: continue
 
-            files.forEach { file ->
+            /* ========== iterate files in dir ========== */
+            for (file in files) {
                 val pair = file.name to file.length()
-
-                if (file.isDirectory)
-                    deque.addLast(file)
-                else if (hashSet.contains(pair)) {
-                    val relativePath = file.absolutePath.removePrefix(homeDir.absolutePath)
-                    if (Ez.isASCII(relativePath)) {
-                        hashSet.remove(pair)
-                        pushList.add(file)
-                    }
-                    else {
-                        val nodes = relativePath.split("/")
-                        for (i in nodes.indices) {
-                            if (i == nodes.size - 1) {
-                            }
-                            else if (i == nodes.size - 2) {
-                            }
-                            else {
-
-                            }
-                        }
-                    }
+                if (!hashSet.contains(pair)) {
+                    if (file.isDirectory)
+                        deque.addLast(file)
+                    continue  // SKIP THIS FILE #1
                 }
 
+                if (Ez.isASCII(file.absolutePath)) {
+                    hashSet.remove(pair)
+                    pushList.add(file)
+                    continue  // SKIP THIS FILE #2
+                }
+
+                val nodes = file.absolutePath.split("/")
+                val nonASCIINodes = mutableListOf<Int>()
+                for (i in nodes.indices) {
+                    if (!Ez.isASCII(nodes[i])) nonASCIINodes.add(i)
+                }
+
+                if (nonASCIINodes.size > 1) {
+                    val clone = File(cloneDir, "${file.hashCode()}")
+                    file.copyTo(clone, true)
+                }
+                else {
+                    val nodeIndex = nonASCIINodes[0]
+                    val nodeParent = nodes.take(nodeIndex).joinToString("/")
+                    val oldFile = File(nodeParent, nodes[nodeIndex])
+                    val newFile = File(nodeParent, "${oldFile.hashCode()}")
+                    oldFile.renameTo(newFile)
+                }
+
+                /* ========== END OF file-iteration ========== */
             }
+
+            /* ========== END OF dfs ========== */
         }
 
         pushList.sortByDescending { it.lastModified() }
-
         pushListFile.bufferedWriter().use { bw ->
             pushList.forEach { file ->
                 bw.write(file.absolutePath)
                 bw.newLine()
             }
         }
+
+        /* ==================== END OF genData() ==================== */
     }
+
+    /* ==================== END OF MainActivity ==================== */
 }
