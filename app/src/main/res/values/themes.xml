@@ -1,9 +1,9 @@
 <resources>
     <!-- Base application theme. -->
-    <style name="Base.Theme.Puller" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Base.Theme.Pusher" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <!-- Customize your light theme here. -->
         <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
     </style>
 
-    <style name="Theme.Puller" parent="Base.Theme.Puller" />
+    <style name="Theme.Pusher" parent="Base.Theme.Pusher" />
 </resources>

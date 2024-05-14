@@ -19,6 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Puller"
+rootProject.name = "Pusher"
 include(":app")
  

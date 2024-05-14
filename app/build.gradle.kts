@@ -4,12 +4,12 @@ plugins {
 }
 
 android {
-    namespace = "rl.puller"
+    namespace = "rl.pusher"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "rl.puller"
-        minSdk = 19
+        applicationId = "rl.pusher"
+        minSdk = 23
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -39,6 +39,4 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
 }
