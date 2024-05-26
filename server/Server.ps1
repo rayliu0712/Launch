@@ -30,7 +30,7 @@ while ($true) {
 
 Write-Host " [ Waiting For Push Command ]"
 while ($true) {
-    $ClientKey = adb shell "cat /sdcard/Android/data/rl.pusher/files/Client_Key.txt" 2> $null | Out-String
+    $ClientKey = adb shell "cat /sdcard/Android/data/rl.launch/files/Client_Key.txt" 2> $null | Out-String
     if ($ClientKey -eq "") {
         $ClientKey = "0"
     }
@@ -47,7 +47,7 @@ while ($true) {
     }
 }
 
-adb pull /sdcard/Android/data/rl.pusher/files/Push_List.txt > $null
+adb pull /sdcard/Android/data/rl.launch/files/Push_List.txt > $null
 [String]$PullList = Get-Content Push_List.txt -Raw
 [String[]]$PullList = $PullList.Trim().Split("`n")
 $size = $PullList.Length
@@ -59,9 +59,9 @@ for ($i = 0; $i -lt $size; $i++) {
     adb pull "$Item" Received
     $host.UI.RawUI.WindowTitle = "$( $i + 1 ) / $size"
 }
-adb shell "rm /sdcard/Android/data/rl.pusher/files/Push_List.txt"
+adb shell "rm /sdcard/Android/data/rl.launch/files/Push_List.txt"
 Remove-Item Push_List.txt
 $stopwatch.Stop()
 
 Write-Host " Done. Received $size files, uses $( $stopwatch.Elapsed.TotalSeconds )s"
-adb shell "touch /sdcard/Android/data/rl.pusher/files/PUSH_DONE"
+adb shell "touch /sdcard/Android/data/rl.launch/files/PUSH_DONE"

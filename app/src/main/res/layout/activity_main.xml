@@ -6,27 +6,62 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <LinearLayout
+    <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_centerInParent="true"
-        android:orientation="vertical">
+        android:layout_centerInParent="true">
 
         <TextView
             android:id="@+id/files_count_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="10dp"
             android:fontFamily="@font/consolas"
+            android:text="@string/no_file"
             android:textSize="30sp" />
 
         <TextView
             android:id="@+id/files_size_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_below="@id/files_count_tv"
+            android:layout_centerHorizontal="true"
             android:fontFamily="@font/consolas"
+            android:text="@string/zero_byte"
             android:textSize="30sp" />
 
-    </LinearLayout>
+        <View
+            android:id="@+id/view"
+            android:layout_width="70sp"
+            android:layout_height="40sp"
+            android:layout_below="@id/files_size_tv"
+            android:layout_centerHorizontal="true" />
+
+        <TextView
+            android:id="@+id/clear_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/view"
+            android:layout_toStartOf="@id/view"
+            android:fontFamily="@font/consolas"
+            android:text="@string/clear"
+            android:textColor="#F44336"
+            android:textSize="20sp" />
+
+        <TextView
+            android:id="@+id/pick_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/view"
+            android:layout_toEndOf="@id/view"
+            android:fontFamily="@font/consolas"
+            android:text="@string/pick"
+            android:textColor="#2196F3"
+            android:textSize="20sp" />
+
+    </RelativeLayout>
 
     <TextView
         android:id="@+id/about_btn"
@@ -37,7 +72,6 @@
         android:layout_margin="20dp"
         android:fontFamily="@font/consolas"
         android:text="@string/about"
-        android:textColor="#2196F3"
         android:textSize="20sp" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -47,6 +81,7 @@
         android:layout_alignParentEnd="true"
         android:layout_alignParentBottom="true"
         android:layout_margin="20dp"
+        android:enabled="false"
         android:importantForAccessibility="no"
         android:src="@drawable/launch" />
 
