@@ -1,4 +1,4 @@
-package rl.pusher
+package rl.launch
 
 import android.Manifest.permission.READ_EXTERNAL_STORAGE
 import android.Manifest.permission.WRITE_EXTERNAL_STORAGE
@@ -10,7 +10,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.OpenableColumns
 import android.provider.Settings
-import android.widget.Toast
+import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -20,7 +20,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import rl.pusher.databinding.ActivityMainBinding
+import rl.launch.databinding.ActivityMainBinding
 import java.io.File
 
 class MainActivity : AppCompatActivity() {
@@ -45,13 +45,21 @@ class MainActivity : AppCompatActivity() {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
-        binding.pushBtn.setOnClickListener { push() }
+
+        binding.aboutBtn.setOnClickListener {
+            Ez.toast(this@MainActivity, "coming soon")
+        }
+        binding.launchBtn.setOnClickListener {
+            if (rawPaths.size > 0)
+                push()
+        }
+
 
         homeDir = Environment.getExternalStorageDirectory()
         appExternalStorageDir = getExternalFilesDir(null)!!
-        pushListTXT = File(appExternalStorageDir, "Push_List.txt").apply { this.createNewFile() }
-        moveListTXT = File(appExternalStorageDir, "Move_List.txt").apply { this.createNewFile() }
-        clientKeyTXT = File(appExternalStorageDir, "Client_Key.txt").apply { this.createNewFile() }
+        pushListTXT = File(appExternalStorageDir, "Push_List.txt").apply { this.delete() }
+        moveListTXT = File(appExternalStorageDir, "Move_List.txt").apply { this.delete() }
+        clientKeyTXT = File(appExternalStorageDir, "Client_Key.txt").apply { this.delete() }
         pushDoneFile = File(appExternalStorageDir, "PUSH_DONE").apply { this.delete() }
     }
 
@@ -62,8 +70,8 @@ class MainActivity : AppCompatActivity() {
             if (!Environment.isExternalStorageManager()) {
                 val intent = Intent(
                     Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                    Uri.parse("package:$packageName")
-                )
+                    Uri.parse("package:$packageName"))
+
                 startActivity(intent)
             }
         }
@@ -78,16 +86,21 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        val devStatus = Settings.Global.getInt(contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0)
+        val adbStatus = Settings.Global.getInt(contentResolver, Settings.Global.ADB_ENABLED, 0)
+        if (adbStatus != 1) {
+            val action =
+                if (devStatus == 1) Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS
+                else Settings.ACTION_DEVICE_INFO_SETTINGS
+
+            startActivity(Intent(action))
+        }
+
         genData(intent)
     }
 
     private fun genData(intent: Intent) {
-        pushListTXT.forEachLine {
-            rawPaths.add(it.trim())
-        }
-
         val uris: ArrayList<Uri> = when (intent.action) {
-
             Intent.ACTION_SEND ->
                 arrayListOf(intent.getParcelableExtra(Intent.EXTRA_STREAM)!!)
 
@@ -96,8 +109,9 @@ class MainActivity : AppCompatActivity() {
 
             else -> return
         }
+        // RETURN IF INTENT IS NOT SHARE
 
-        val hashSet = hashSetOf<Pair<String, Long>>()
+        val hashList = mutableListOf<Pair<String, Long>>()
         for (uri in uris) {
             val cursor = contentResolver.query(uri, null, null, null, null)!!
             if (cursor.moveToFirst()) {
@@ -106,24 +120,27 @@ class MainActivity : AppCompatActivity() {
 
                 val name = cursor.getString(nameColumnIndex)
                 val size = cursor.getLong(sizeColumnIndex)
+                val pair = name to size
 
-                if (!hashSet.add(name to size))
+                if (hashList.contains(pair))
                     Ez.toast(this, "Duplicated")
+                else
+                    hashList.add(pair)
             }
             cursor.close()
         }
 
-        val deque = ArrayDeque<File>()
-        deque.addLast(homeDir)
+        val deque = ArrayDeque<File>().apply { this.addLast(homeDir) }
         while (!deque.isEmpty()) {
             val dir = deque.removeLast()
-            val files = dir.listFiles() ?: continue
+            val files = dir.listFiles()
+                ?: continue
 
             for (file in files) {
-                val pair = file.name to file.length()
+                val index = hashList.indexOf(file.name to file.length())
 
-                if (hashSet.contains(pair)) {
-                    hashSet.remove(pair)
+                if (index != -1) {
+                    hashList.removeAt(index)
                     rawPaths.add(file.absolutePath)
                 }
                 else if (file.isDirectory)
@@ -135,6 +152,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun push() {
+        binding.launchBtn.isEnabled = false
+        binding.aboutBtn.isEnabled = false
+
         val cookedRawPairs = mutableListOf<Pair<String, String>>()
 
         for (rawPath in rawPaths) {
@@ -151,25 +171,26 @@ class MainActivity : AppCompatActivity() {
         pushListTXT.writeText(cookedRawPairs.joinToString("\n") { it.first })
         moveListTXT.writeText(cookedRawPairs.joinToString("\n") { "${it.first}\t${it.second}" })
 
-        // notify server to pull
-        clientKeyTXT.writeText("${Ez.millis()}")
         Ez.toast(this, "START PUSHING")
-
         lifecycleScope.launch {
             while (!pushDoneFile.exists()) {
-                delay(100)
+                clientKeyTXT.writeText("${Ez.millis()}")
+                delay(250)
             }
-
             Ez.toast(this@MainActivity, "PUSH DONE")
 
             for ((cooked, raw) in cookedRawPairs) {
                 File(cooked).renameTo(File(raw))
             }
 
-            pushListTXT.delete()
             moveListTXT.delete()
             clientKeyTXT.delete()
             pushDoneFile.delete()
+
+            runOnUiThread {
+                binding.launchBtn.isEnabled = true
+                binding.aboutBtn.isEnabled = true
+            }
         }
 
         /* ========== push() ========== */

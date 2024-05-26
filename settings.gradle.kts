@@ -19,6 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Pusher"
+rootProject.name = "Launch"
 include(":app")
  

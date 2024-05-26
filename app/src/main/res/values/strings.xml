@@ -1,3 +1,8 @@
 <resources>
-    <string name="app_name">Pusher</string>
+    <string name="app_name">Launch</string>
+    <string name="about">&lt;about&gt;</string>
+    <string name="grant">&lt;grant&gt;</string>
+    <string name="enable">&lt;enable&gt;</string>
+    <string name="permission_required">Permission Required</string>
+    <string name="adb_required">ADB Required</string>
 </resources>

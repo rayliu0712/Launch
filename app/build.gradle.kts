@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "rl.pusher"
+    namespace = "rl.launch"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "rl.pusher"
+        applicationId = "rl.launch"
         minSdk = 19
         targetSdk = 34
         versionCode = 1
