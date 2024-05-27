@@ -6,9 +6,9 @@ import android.content.DialogInterface
 
 class Dialog(
     private val context: Context,
-    private val cancelable: Boolean = false,
     private val title: String? = null,
     private val msg: String? = null,
+    private val cancelable: Boolean = false,
     private val positiveBtn: String? = null,
     var negativeBtn: String? = null,
 ) {
@@ -17,9 +17,9 @@ class Dialog(
         negativeListener: DialogInterface.OnClickListener? = null
     ) {
         AlertDialog.Builder(context)
-            .setCancelable(cancelable)
             .setTitle(title)
             .setMessage(msg)
+            .setCancelable(cancelable)
             .setPositiveButton(positiveBtn, positiveListener)
             .setNegativeButton(negativeBtn, negativeListener)
             .show()
@@ -27,6 +27,6 @@ class Dialog(
 
     companion object {
         fun warning(context: Context, title: String, msg: String) =
-            Dialog(context, false, title, msg, "OK").build()
+            Dialog(context, title, msg, false, "OK").build()
     }
 }

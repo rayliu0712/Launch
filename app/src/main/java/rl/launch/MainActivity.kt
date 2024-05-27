@@ -34,11 +34,11 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var homeDir: File
     private lateinit var appExternalStorageDir: File
-    private lateinit var recoveryListTXT: File
+    private lateinit var repairListTXT: File
     private lateinit var launchListTXT: File
     private lateinit var moveListTXT: File
     private lateinit var clientKeyTXT: File
-    private lateinit var launchDoneFile: File
+    private lateinit var launchCompletedFile: File
     private var neverAskPermissionsAgain = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,10 +63,9 @@ class MainActivity : AppCompatActivity() {
         }
         binding.pickBtn.setOnClickListener {
 
-            val dialog = Dialog(
-                this,
-                cancelable = true,
+            val dialog = Dialog(this,
                 title = "File or Folder ?",
+                cancelable = true,
                 positiveBtn = "File")
 
             val fileIntent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -86,13 +85,7 @@ class MainActivity : AppCompatActivity() {
                 dialog.build({ _, _ -> startActivityForResult(fileIntent, 0) })
         }
         binding.aboutBtn.setOnClickListener {
-            val dialog = Dialog(
-                this,
-                cancelable = true,
-                title = "About",
-                msg = "what")
-
-            dialog.build()
+            Dialog.warning(this, "About", "what")
         }
         binding.launchBtn.setOnClickListener {
             launch()
@@ -100,11 +93,11 @@ class MainActivity : AppCompatActivity() {
 
         homeDir = Environment.getExternalStorageDirectory()
         appExternalStorageDir = getExternalFilesDir(null)!!
-        recoveryListTXT = File(appExternalStorageDir, "Recovery_List.txt")
+        repairListTXT = File(appExternalStorageDir, "Repair_List.txt")
         launchListTXT = File(appExternalStorageDir, "Launch_List.txt").apply { delete() }
         moveListTXT = File(appExternalStorageDir, "Move_List.txt").apply { delete() }
         clientKeyTXT = File(appExternalStorageDir, "Client_Key.txt").apply { delete() }
-        launchDoneFile = File(appExternalStorageDir, "LAUNCH_DONE").apply { delete() }
+        launchCompletedFile = File(appExternalStorageDir, "LAUNCH_COMPLETED").apply { delete() }
     }
 
     override fun onResume() {
@@ -153,6 +146,15 @@ class MainActivity : AppCompatActivity() {
             adbDialog.build({ _, _ -> startActivity(Intent(action)) })
         }
 
+        if (repairListTXT.exists()) {
+            repairListTXT.forEachLine {
+                val (cookedPath, rawPath) = it.split("\t")
+                File(cookedPath).renameTo(File(rawPath))
+            }
+            repairListTXT.delete()
+
+            Dialog.warning(this, "Automatic Repair Performed", "due to unexpectedly termination")
+        }
         genData(intent)
     }
 
@@ -169,6 +171,7 @@ class MainActivity : AppCompatActivity() {
         neverAskPermissionsAgain = !shouldShowRationale
     }
 
+    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
@@ -233,7 +236,7 @@ class MainActivity : AppCompatActivity() {
 
             hashSet.remove(pair)
             if (!rawFiles.add(file))
-                Dialog.warning(this, "Duplicated File Detected", "this request will be ignored")  //TODO
+                Dialog.warning(this, "Duplicated File Detected", "this request will be ignored")
             else
                 totalFilesLength += ez.totalLength(file)
         }
@@ -269,27 +272,27 @@ class MainActivity : AppCompatActivity() {
         if (rawFiles.size == 0)
             return
 
-        recoveryListTXT.writeText(cookedRawPairs.joinToString("\n") { "${it.first.absolutePath}\t${it.second.absolutePath}" })
+        repairListTXT.writeText(cookedRawPairs.joinToString("\n") { "${it.first.absolutePath}\t${it.second.absolutePath}" })
         launchListTXT.writeText(cookedRawPairs.joinToString("\n") { it.first.absolutePath })
         moveListTXT.writeText(cookedRawPairs.joinToString("\n") { "${it.first.name}\t${it.second.name}" })
 
-        ez.toast("START")
+        ez.toast("LAUNCH!")
         lifecycleScope.launch {
-            while (!launchDoneFile.exists()) {
+            while (!launchCompletedFile.exists()) {
                 clientKeyTXT.writeText("${ez.millis()}")
                 delay(250)
             }
-            ez.toast("DONE")
+            ez.toast("LAUNCH COMPLETED")
 
             for ((cookedFile, rawFile) in cookedRawPairs) {
                 cookedFile.renameTo(rawFile)
             }
 
-            recoveryListTXT.delete()
+            repairListTXT.delete()
             launchListTXT.delete()
             moveListTXT.delete()
             clientKeyTXT.delete()
-            launchDoneFile.delete()
+            launchCompletedFile.delete()
 
             ez.setBtnEnable(true)
             ez.clearAndUpdate()
