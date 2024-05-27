@@ -12,7 +12,7 @@
         android:layout_centerInParent="true">
 
         <TextView
-            android:id="@+id/files_count_tv"
+            android:id="@+id/total_files_count_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentTop="true"
@@ -23,10 +23,10 @@
             android:textSize="30sp" />
 
         <TextView
-            android:id="@+id/files_size_tv"
+            android:id="@+id/total_files_size_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@id/files_count_tv"
+            android:layout_below="@id/total_files_count_tv"
             android:layout_centerHorizontal="true"
             android:fontFamily="@font/consolas"
             android:text="@string/zero_byte"
@@ -36,7 +36,7 @@
             android:id="@+id/view"
             android:layout_width="70sp"
             android:layout_height="40sp"
-            android:layout_below="@id/files_size_tv"
+            android:layout_below="@id/total_files_size_tv"
             android:layout_centerHorizontal="true" />
 
         <TextView

@@ -7,6 +7,7 @@ kill -Name explorer -Force; explorer
 
 $host.UI.RawUI.WindowTitle = "Receiver"
 mkdir Received *> $null
+Set-Location Received
 
 while ($true) {
     [String]$output = adb shell "getprop ro.product.model" 2>&1 | Out-String
@@ -28,7 +29,7 @@ while ($true) {
     Start-Sleep -Milliseconds 250
 }
 
-Write-Host " [ Waiting For Push Command ]"
+Write-Host " [ Waiting For Launch Command ]"
 while ($true) {
     $ClientKey = adb shell "cat /sdcard/Android/data/rl.launch/files/Client_Key.txt" 2> $null | Out-String
     if ($ClientKey -eq "") {
@@ -47,21 +48,33 @@ while ($true) {
     }
 }
 
-adb pull /sdcard/Android/data/rl.launch/files/Push_List.txt > $null
-[String]$PullList = Get-Content Push_List.txt -Raw
-[String[]]$PullList = $PullList.Trim().Split("`n")
-$size = $PullList.Length
+adb pull "/sdcard/Android/data/rl.launch/files/Launch_List.txt" > $null
+adb pull "/sdcard/Android/data/rl.launch/files/Move_List.txt" > $null
+
+[String]$LaunchList = Get-Content "Launch_List.txt" -Raw
+[String[]]$LaunchList = $LaunchList.Trim().Split("`n")
+[String]$MoveList = Get-Content "Move_List.txt" -Raw -Encoding UTF8
+[String[]]$MoveList = $MoveList.Trim().Split("`n")
+$size = $LaunchList.Length
 
 $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 $stopwatch.Start()
 for ($i = 0; $i -lt $size; $i++) {
-    [String]$Item = $PullList[$i].Trim()
-    adb pull "$Item" Received
+    [String]$launch = $LaunchList[$i].Trim()
+    adb pull "$launch"
+
+    [String[]]$move = $MoveList[$i].Trim().Split("`t")
+    [String]$cooked = $move[0].Trim()
+    [String]$raw = $move[1].Trim()
+    Move-Item "$cooked" "$raw"
+
     $host.UI.RawUI.WindowTitle = "$( $i + 1 ) / $size"
 }
-adb shell "rm /sdcard/Android/data/rl.launch/files/Push_List.txt"
-Remove-Item Push_List.txt
+Remove-Item "Launch_List.txt"
+Remove-Item "Move_List.txt"
 $stopwatch.Stop()
 
 Write-Host " Done. Received $size files, uses $( $stopwatch.Elapsed.TotalSeconds )s"
-adb shell "touch /sdcard/Android/data/rl.launch/files/PUSH_DONE"
+adb shell "touch /sdcard/Android/data/rl.launch/files/LAUNCH_DONE"
+
+Start-Sleep 10

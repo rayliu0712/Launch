@@ -8,5 +8,5 @@
     <string name="clear">&lt;clear&gt;</string>
     <string name="pick">&lt;pick&gt;</string>
     <string name="no_file">No File</string>
-    <string name="zero_byte">0 Byte</string>
+    <string name="zero_byte">0 B</string>
 </resources>

@@ -12,6 +12,7 @@ import android.os.Environment
 import android.provider.OpenableColumns
 import android.provider.Settings
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -22,19 +23,22 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import rl.launch.databinding.ActivityMainBinding
 import java.io.File
+import java.util.TreeSet
+
+val rawFiles = TreeSet<File> { f1, f2 -> f2.lastModified().compareTo(f1.lastModified()) }
+var totalFilesLength = 0L
 
 class MainActivity : AppCompatActivity() {
-    private lateinit var binding: ActivityMainBinding
+    lateinit var binding: ActivityMainBinding
+    private val ez = Ez(this)
+
     private lateinit var homeDir: File
     private lateinit var appExternalStorageDir: File
-
-    private lateinit var pushListTXT: File
+    private lateinit var recoveryListTXT: File
+    private lateinit var launchListTXT: File
     private lateinit var moveListTXT: File
     private lateinit var clientKeyTXT: File
-    private lateinit var pushDoneFile: File
-
-    private val rawPaths = mutableListOf<String>()
-    private var filesLength = 0L
+    private lateinit var launchDoneFile: File
     private var neverAskPermissionsAgain = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,65 +53,64 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.clearBtn.setOnClickListener {
-            val dialog = Ez.Dialog(this@MainActivity,
+            val dialog = Dialog(
+                this,
                 title = "Are u sure ?",
                 positiveBtn = "Yes",
                 negativeBtn = "No")
 
-            Ez.buildDialog(dialog, { _, _ ->
-                rawPaths.clear()
-                binding.launchBtn.isEnabled = false
-            })
+            dialog.build({ _, _ -> ez.clearAndUpdate() })
         }
         binding.pickBtn.setOnClickListener {
 
-            val dialog = Ez.Dialog(this@MainActivity,
+            val dialog = Dialog(
+                this,
                 cancelable = true,
                 title = "File or Folder ?",
                 positiveBtn = "File")
 
             val fileIntent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                addCategory(Intent.CATEGORY_OPENABLE)
                 type = "*/*"
+                addCategory(Intent.CATEGORY_OPENABLE)
                 putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 dialog.negativeBtn = "Folder"
                 val folderIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-                Ez.buildDialog(dialog,
+                dialog.build(
                     { _, _ -> startActivityForResult(fileIntent, 0) },
                     { _, _ -> startActivityForResult(folderIntent, 1) })
             }
             else
-                Ez.buildDialog(dialog,
-                    { _, _ -> startActivityForResult(fileIntent, 0) })
+                dialog.build({ _, _ -> startActivityForResult(fileIntent, 0) })
         }
         binding.aboutBtn.setOnClickListener {
-            val dialog = Ez.Dialog(this@MainActivity,
+            val dialog = Dialog(
+                this,
                 cancelable = true,
                 title = "About",
                 msg = "what")
 
-            Ez.buildDialog(dialog)
+            dialog.build()
         }
         binding.launchBtn.setOnClickListener {
-            if (rawPaths.size > 0)
-                push()
+            launch()
         }
 
         homeDir = Environment.getExternalStorageDirectory()
         appExternalStorageDir = getExternalFilesDir(null)!!
-        moveListTXT = File(appExternalStorageDir, "Move_List.txt")
-        pushListTXT = File(appExternalStorageDir, "Push_List.txt").apply { this.delete() }
-        clientKeyTXT = File(appExternalStorageDir, "Client_Key.txt").apply { this.delete() }
-        pushDoneFile = File(appExternalStorageDir, "PUSH_DONE").apply { this.delete() }
+        recoveryListTXT = File(appExternalStorageDir, "Recovery_List.txt")
+        launchListTXT = File(appExternalStorageDir, "Launch_List.txt").apply { delete() }
+        moveListTXT = File(appExternalStorageDir, "Move_List.txt").apply { delete() }
+        clientKeyTXT = File(appExternalStorageDir, "Client_Key.txt").apply { delete() }
+        launchDoneFile = File(appExternalStorageDir, "LAUNCH_DONE").apply { delete() }
     }
 
     override fun onResume() {
         super.onResume()
 
-        val permissionDialog = Ez.Dialog(this, title = "Permission Required", positiveBtn = "GRANT")
+        val permissionDialog = Dialog(this, title = "Permission Required", positiveBtn = "GRANT")
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!Environment.isExternalStorageManager()) {
@@ -116,8 +119,7 @@ class MainActivity : AppCompatActivity() {
                     Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
                     Uri.parse("package:$packageName"))
 
-                Ez.buildDialog(permissionDialog,
-                    { _, _ -> startActivity(intent) })
+                permissionDialog.build({ _, _ -> startActivity(intent) })
             }
         }
         else {
@@ -130,10 +132,9 @@ class MainActivity : AppCompatActivity() {
                     Uri.parse("package:$packageName"))
 
                 if (neverAskPermissionsAgain)
-                    Ez.buildDialog(permissionDialog,
-                        { _, _ -> startActivity(intent) })
+                    permissionDialog.build({ _, _ -> startActivity(intent) })
                 else
-                    Ez.buildDialog(permissionDialog, { _, _ ->
+                    permissionDialog.build({ _, _ ->
                         ActivityCompat.requestPermissions(
                             this,
                             arrayOf(READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE), 0)
@@ -148,115 +149,15 @@ class MainActivity : AppCompatActivity() {
                 if (devStatus == 1) Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS
                 else Settings.ACTION_DEVICE_INFO_SETTINGS
 
-            val adbDialog = Ez.Dialog(this, title = "ADB is disabled", positiveBtn = "ENABLE")
-            Ez.buildDialog(adbDialog,
-                { _, _ -> startActivity(Intent(action)) })
+            val adbDialog = Dialog(this, title = "ADB is disabled", positiveBtn = "ENABLE")
+            adbDialog.build({ _, _ -> startActivity(Intent(action)) })
         }
 
-        if (rawPaths.size > 0)
-            binding.clearBtn.isEnabled = true
         genData(intent)
-    }
-
-    private fun genData(intent: Intent) {
-        val uris: ArrayList<Uri> = when (intent.action) {
-            Intent.ACTION_SEND ->
-                arrayListOf(intent.getParcelableExtra(Intent.EXTRA_STREAM)!!)
-
-            Intent.ACTION_SEND_MULTIPLE ->
-                intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)!!
-
-            else -> return
-        }
-        // RETURN IF INTENT IS NOT SHARE
-
-        val hashList = mutableListOf<Pair<String, Long>>()
-        for (uri in uris) {
-            val cursor = contentResolver.query(uri, null, null, null, null)!!
-            if (cursor.moveToFirst()) {
-                val nameColumnIndex = cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME)
-                val sizeColumnIndex = cursor.getColumnIndexOrThrow(OpenableColumns.SIZE)
-
-                val name = cursor.getString(nameColumnIndex)
-                val size = cursor.getLong(sizeColumnIndex)
-                val pair = name to size
-
-                if (hashList.contains(pair))
-                    Ez.toast(this, "Duplicated")
-                else
-                    hashList.add(pair)
-            }
-            cursor.close()
-        }
-
-        for (file in homeDir.walkTopDown()) {
-            val index = hashList.indexOf(file.name to file.length())
-            if (index == -1) continue
-
-            hashList.removeAt(index)
-            rawPaths.add(file.absolutePath)
-            filesLength += Ez.totalLength(file)
-        }
-
-        rawPaths.sortByDescending { File(it).lastModified() }
-
-        binding.launchBtn.isEnabled = true
-        binding.filesCountTv.text =
-            if (rawPaths.size == 1) "1 File"
-            else "${rawPaths.size} Files"
-        binding.filesSizeTv.text = Ez.size(filesLength)
-
-    }
-
-    private fun push() {
-        binding.launchBtn.isEnabled = false
-        binding.aboutBtn.isEnabled = false
-
-        val cookedRawPairs = mutableListOf<Pair<String, String>>()
-
-        for (rawPath in rawPaths) {
-            val isASCII = rawPath.matches("\\A\\p{ASCII}*\\z".toRegex())
-            if (!isASCII) {
-                val cookedFile = File(appExternalStorageDir, "${rawPath.hashCode()}")
-                File(rawPath).renameTo(cookedFile)
-                cookedRawPairs.add(cookedFile.absolutePath to rawPath)
-            }
-            else
-                cookedRawPairs.add(rawPath to rawPath)
-        }
-
-        pushListTXT.writeText(cookedRawPairs.joinToString("\n") { it.first })
-        moveListTXT.writeText(cookedRawPairs.joinToString("\n") { "${it.first}\t${it.second}" })
-
-        Ez.toast(this, "START PUSHING")
-        lifecycleScope.launch {
-            while (!pushDoneFile.exists()) {
-                clientKeyTXT.writeText("${Ez.millis()}")
-                delay(250)
-            }
-            Ez.toast(this@MainActivity, "PUSH DONE")
-
-            for ((cooked, raw) in cookedRawPairs) {
-                File(cooked).renameTo(File(raw))
-            }
-
-            moveListTXT.delete()
-            clientKeyTXT.delete()
-            pushDoneFile.delete()
-
-            runOnUiThread {
-                binding.launchBtn.isEnabled = true
-                binding.aboutBtn.isEnabled = true
-            }
-        }
-
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-
-        if (requestCode != 0)
-            return
 
         if (grantResults[0] == PERMISSION_GRANTED && grantResults[1] == PERMISSION_GRANTED)
             return
@@ -268,4 +169,130 @@ class MainActivity : AppCompatActivity() {
         neverAskPermissionsAgain = !shouldShowRationale
     }
 
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (resultCode == RESULT_CANCELED)
+            return
+
+        when (requestCode) {
+            0 -> genData(data!!.apply { action = Intent.ACTION_OPEN_DOCUMENT })
+            1 -> genData(data!!.apply { action = Intent.ACTION_OPEN_DOCUMENT_TREE })
+        }
+    }
+
+    private fun genData(intent: Intent) {
+        val uris: ArrayList<Uri> = when (intent.action) {
+
+            Intent.ACTION_SEND ->
+                arrayListOf(intent.getParcelableExtra(Intent.EXTRA_STREAM)!!)
+
+            Intent.ACTION_SEND_MULTIPLE ->
+                intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)!!
+
+            Intent.ACTION_OPEN_DOCUMENT ->
+                arrayListOf(intent.data!!)
+
+            Intent.ACTION_OPEN_DOCUMENT_TREE -> {
+                val clipData = intent.clipData!!
+                arrayListOf<Uri>().apply {
+                    for (i in 0 until clipData.itemCount)
+                        add(clipData.getItemAt(i).uri)
+                }
+            }
+
+            else -> {
+                ez.updateView()
+                return
+            }
+        }
+        // RETURN IF INTENT IS NOT SHARE
+
+        val hashSet = hashSetOf<Pair<String, Long>>()
+        for (uri in uris) {
+            val cursor = contentResolver.query(uri, null, null, null, null)!!
+            if (cursor.moveToFirst()) {
+                val nameColumnIndex = cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME)
+                val sizeColumnIndex = cursor.getColumnIndexOrThrow(OpenableColumns.SIZE)
+
+                val name = cursor.getString(nameColumnIndex)
+                val size = cursor.getLong(sizeColumnIndex)
+                val pair = name to size
+
+                if (!hashSet.add(pair))
+                    Dialog.warning(this, "Duplicated File Detected", "this request will be ignored")
+            }
+            cursor.close()
+        }
+
+        for (file in homeDir.walkTopDown()) {
+            val pair = file.name to file.length()
+
+            if (!hashSet.contains(pair))
+                continue
+
+            hashSet.remove(pair)
+            if (!rawFiles.add(file))
+                Dialog.warning(this, "Duplicated File Detected", "this request will be ignored")  //TODO
+            else
+                totalFilesLength += ez.totalLength(file)
+        }
+
+        ez.updateView()
+    }
+
+    private fun launch() {
+        ez.setBtnEnable(false)
+
+        val cookedRawPairs = mutableListOf<Pair<File, File>>()
+
+        val unavailable = arrayListOf<File>()
+        for (rawFile in rawFiles) {
+            if (!rawFile.exists()) {
+                unavailable.add(rawFile)
+                Dialog.warning(this, "File Not Exist", "request for this file will be ignored")
+                continue
+            }
+
+            val isASCII = rawFile.absolutePath.matches("\\A\\p{ASCII}*\\z".toRegex())
+            if (!isASCII) {
+                val cookedFile = File(appExternalStorageDir, "${rawFile.hashCode()}")
+                rawFile.renameTo(cookedFile)
+                cookedRawPairs.add(cookedFile to rawFile)
+            }
+            else
+                cookedRawPairs.add(rawFile to rawFile)
+        }
+
+        unavailable.forEach { rawFiles.remove(it) }
+
+        if (rawFiles.size == 0)
+            return
+
+        recoveryListTXT.writeText(cookedRawPairs.joinToString("\n") { "${it.first.absolutePath}\t${it.second.absolutePath}" })
+        launchListTXT.writeText(cookedRawPairs.joinToString("\n") { it.first.absolutePath })
+        moveListTXT.writeText(cookedRawPairs.joinToString("\n") { "${it.first.name}\t${it.second.name}" })
+
+        ez.toast("START")
+        lifecycleScope.launch {
+            while (!launchDoneFile.exists()) {
+                clientKeyTXT.writeText("${ez.millis()}")
+                delay(250)
+            }
+            ez.toast("DONE")
+
+            for ((cookedFile, rawFile) in cookedRawPairs) {
+                cookedFile.renameTo(rawFile)
+            }
+
+            recoveryListTXT.delete()
+            launchListTXT.delete()
+            moveListTXT.delete()
+            clientKeyTXT.delete()
+            launchDoneFile.delete()
+
+            ez.setBtnEnable(true)
+            ez.clearAndUpdate()
+        }
+    }
 }
