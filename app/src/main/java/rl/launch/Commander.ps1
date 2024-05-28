@@ -6,55 +6,49 @@ kill -Name explorer -Force; explorer
 "@ > $null
 
 $host.UI.RawUI.WindowTitle = "Commander"
-mkdir "Received" *> $null
-cd "Received"
+mkdir Received *> $null
+cd Received
 
 while ($true) {
-    [String]$output = adb shell "getprop ro.product.model" 2>&1 | Out-String
-    [String]$output = $output.Trim()
+    $output = adb shell "getprop ro.product.model" 2>&1 | Out-String
+    $output = $output.Trim()
     if ($output -notmatch "adb.exe: no devices/emulators found") {
-        Clear-Host
-        Write-Host "`r [ $output Connected ]"
-        Write-Host
+        clear
+        echo "`r [ $output Connected ]`n"
         break
     }
 
     Write-Host -NoNewline "`r Waiting For Device  /"
-    Start-Sleep -Milliseconds 250
+    sleep 0.25
     Write-Host -NoNewline "`b-"
-    Start-Sleep -Milliseconds 250
+    sleep 0.25
     Write-Host -NoNewline "`b\"
-    Start-Sleep -Milliseconds 250
+    sleep 0.25
     Write-Host -NoNewline "`b|"
-    Start-Sleep -Milliseconds 250
+    sleep 0.25
 }
+echo " [ Waiting For Launch ]"
 
-Write-Host " [ Waiting For Launch ]"
+
 while ($true) {
-    $ClientKey = adb shell "cat /sdcard/Android/data/rl.launch/files/Client_Key.txt" 2> $null | Out-String
-    if ($ClientKey -eq "") {
-        $ClientKey = "0"
-    }
-    $ClientKey = [Int64]::Parse($ClientKey.Trim())
-
-    $now = adb shell "date +%s%3N"
-    $now = [Int64]::Parse($now.Trim())
-
-    $span = $now - $ClientKey
-
-    if ($span -le 500) {
-        Clear-Host
+    adb shell "touch /sdcard/Android/data/rl.launch/files/Key"
+    sleep 0.5
+    $output = adb shell "[[ -f /sdcard/Android/data/rl.launch/files/Launch_List.txt ]] && echo E || echo N"
+    $output = $output.Trim()
+    if ($output -eq "E") {
+        clear
         break
     }
 }
 
-$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+$stopwatch = [System.Diagnostics.Stopwatch]::new()
 $stopwatch.Start()
 
 adb pull "/sdcard/Android/data/rl.launch/files/Launch_List.txt" > $null
-[String]$LaunchList = Get-Content "Launch_List.txt" -Raw
+[String]$LaunchList = cat Launch_List.txt -Raw -Encoding utf8
 [String[]]$LaunchList = $LaunchList.Trim().Split("`n")
 $size = $LaunchList.Length
+rm Launch_List.txt
 
 for ($i = 0; $i -lt $size; $i++) {
     [String]$launch = $LaunchList[$i]
@@ -63,25 +57,42 @@ for ($i = 0; $i -lt $size; $i++) {
 }
 
 adb pull "/sdcard/Android/data/rl.launch/files/Move_List.txt" > $null
-[String]$MoveList = Get-Content "Move_List.txt" -Raw -Encoding UTF8
+[String]$MoveList = cat Move_List.txt -Raw -Encoding utf8
 [String[]]$MoveList = $MoveList.Trim().Split("`n")
 $size = $MoveList.Length
+rm Move_List.txt
 
 for ($i = 0; $i -lt $size; $i++) {
     [String[]]$move = $MoveList[$i].Split("`t")
     [String]$cooked = $move[0]
     [String]$raw = $move[1]
-    Move-Item "$cooked" "$raw"
+    mv "$cooked" "$raw"
 }
 
 $stopwatch.Stop()
 adb shell "touch /sdcard/Android/data/rl.launch/files/LAUNCH_COMPLETED"
-Remove-Item "Launch_List.txt"
-Remove-Item "Move_List.txt"
 
-Write-Host " Done. Received $size files, uses $( $stopwatch.Elapsed.TotalSeconds )s"
-Write-Host
+echo " Completed. Received $size files, uses $( $stopwatch.Elapsed.TotalSeconds )s `n"
 for ($i = 10; $i -ge 0; $i--) {
     Write-Host -NoNewline "`r Exit After $i`s "
-    Start-Sleep 1
+    sleep 1
 }
+
+
+#while ($true) {
+#    $ClientKey = adb shell "cat /sdcard/Android/data/rl.launch/files/Client_Key.txt" 2> $null | Out-String
+#    if ($ClientKey -eq "") {
+#        $ClientKey = "0"
+#    }
+#    $ClientKey = [Int64]::Parse($ClientKey.Trim())
+#
+#    $now = adb shell "date +%s%3N"
+#    $now = [Int64]::Parse($now.Trim())
+#
+#    $span = $now - $ClientKey
+#
+#    if ($span -le 500) {
+#        clear
+#        break
+#    }
+#}
