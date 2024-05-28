@@ -1,7 +1,7 @@
 <resources>
 
     <style name="Base.Theme.Launch" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-
+        <item name="android:textAllCaps">false</item>
     </style>
 
     <style name="Theme.Launch" parent="Base.Theme.Launch" />

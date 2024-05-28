@@ -48,28 +48,32 @@ while ($true) {
     }
 }
 
+$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+$stopwatch.Start()
+
 adb pull "/sdcard/Android/data/rl.launch/files/Launch_List.txt" > $null
 [String]$LaunchList = Get-Content "Launch_List.txt" -Raw
 [String[]]$LaunchList = $LaunchList.Trim().Split("`n")
 $size = $LaunchList.Length
 
-adb pull "/sdcard/Android/data/rl.launch/files/Move_List.txt" > $null
-[String]$MoveList = Get-Content "Move_List.txt" -Raw -Encoding UTF8
-[String[]]$MoveList = $MoveList.Trim().Split("`n")
-
-$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-$stopwatch.Start()
 for ($i = 0; $i -lt $size; $i++) {
     [String]$launch = $LaunchList[$i]
     adb pull "$launch"
+    $host.UI.RawUI.WindowTitle = "$( $i + 1 ) / $size"
+}
 
+adb pull "/sdcard/Android/data/rl.launch/files/Move_List.txt" > $null
+[String]$MoveList = Get-Content "Move_List.txt" -Raw -Encoding UTF8
+[String[]]$MoveList = $MoveList.Trim().Split("`n")
+$size = $MoveList.Length
+
+for ($i = 0; $i -lt $size; $i++) {
     [String[]]$move = $MoveList[$i].Split("`t")
     [String]$cooked = $move[0]
     [String]$raw = $move[1]
     Move-Item "$cooked" "$raw"
-
-    $host.UI.RawUI.WindowTitle = "$( $i + 1 ) / $size"
 }
+
 $stopwatch.Stop()
 adb shell "touch /sdcard/Android/data/rl.launch/files/LAUNCH_COMPLETED"
 Remove-Item "Launch_List.txt"
