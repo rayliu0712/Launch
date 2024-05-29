@@ -168,13 +168,13 @@ class MainActivity : AppCompatActivity() {
                 cooked = File(filesDir, "${raw.hashCode()}")
 
                 repairList.add(cooked to raw)
-                repairFile.appendText("${cooked.absolutePath}\t${raw.absolutePath}")
-                moveFile.appendText("${cooked.name}\t${raw.name}")
+                repairFile.appendText("${cooked.absolutePath}\t${raw.absolutePath}\n")
+                moveFile.appendText("${cooked.name}\t${raw.name}\n")
 
                 raw.renameTo(cooked)
             }
 
-            launchFile.appendText(cooked.name)
+            launchFile.appendText("${cooked.absolutePath}\n")
         }
 
         if (available == 0)

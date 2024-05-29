@@ -47,14 +47,14 @@ object Ez {
     fun permissionDialog(action: MainActivity.() -> Unit) =
         AlertDialog.Builder(sec.me)
             .setCancelable(false)
-            .setTitle("權限，plz")
+            .setTitle("沒有權限 :(")
             .setPositiveButton("給你") { _, _ -> sec.me.action() }
             .show()!!
 
     fun adbDialog(posBtn: String, action: MainActivity.() -> Unit) {
         AlertDialog.Builder(sec.me)
             .setCancelable(false)
-            .setTitle("ADB，plz")
+            .setTitle("沒有開啟adb :(")
             .setPositiveButton(posBtn) { _, _ -> sec.me.action() }
             .show()!!
     }
