@@ -1,6 +1,9 @@
 package rl.launch
 
 import android.Manifest
+import android.Manifest.permission.READ_EXTERNAL_STORAGE
+import android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -12,9 +15,14 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.io.File
 
-class Secretary(private val ma: MainActivity) {
+class Secretary {
+    lateinit var me: MainActivity
+    fun setThis(ma: MainActivity) {
+        this.me = ma
+    }
+
     private fun ui(action: MainActivity.() -> Unit) {
-        ma.runOnUiThread { ma.action() }
+        me.runOnUiThread { me.action() }
     }
 
     fun toast(vararg any: Any) {
@@ -24,39 +32,40 @@ class Secretary(private val ma: MainActivity) {
     }
 
     fun onCreate() {
-        ma.apply {
+        me.apply {
             homeDir = Environment.getExternalStorageDirectory()
-            appExtDir = getExternalFilesDir(null)!!
-            repairLF = File(appExtDir, "Repair_List.txt")
-            launchLF = File(appExtDir, "Launch_List.txt").apply { delete() }
-            moveLF = File(appExtDir, "Move_List.txt").apply { delete() }
-            clientKF = File(appExtDir, "Client_Key.txt").apply { delete() }
-            launchCF = File(appExtDir, "LAUNCH_COMPLETED").apply { delete() }
+            repairFile = File(filesDir, "repair.txt")
+            launchFile = File(filesDir, "launch.txt").apply { delete() }
+            moveFile = File(filesDir, "move.txt").apply { delete() }
+            keyA = File(filesDir, "key_a").apply { delete() }
+            keyB = File(filesDir, "key_b").apply { delete() }
 
             binding.clearBtn.setOnClickListener {
-                Dialog.yesNo("Clear", "are you sure ?") { _, _ -> clearAndUpdate() }
+                Ez.ynDialog("Are You Sure ?") { clearAndUpdate() }
             }
             binding.pickBtn.setOnClickListener {
-
-                val dialog = Dialog.abBuilder("Pick", "File or Folder ?", "FILE")
 
                 val fileIntent = Intent(Intent.ACTION_OPEN_DOCUMENT)
                 fileIntent.type = "*/*"
                 fileIntent.addCategory(Intent.CATEGORY_OPENABLE)
                 fileIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
 
+                val dialog = AlertDialog.Builder(this)
+                    .setTitle("File or Folder ?")
+                    .setPositiveButton("FILE")
+                    { _, _ -> startActivityForResult(fileIntent, 0) }
+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     val folderIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-                    dialog.negBtn = "FOLDER"
-                    dialog.show(
-                        { _, _ -> startActivityForResult(fileIntent, 0) },
-                        { _, _ -> startActivityForResult(folderIntent, 1) })
+
+                    dialog.setNegativeButton("FOLDER")
+                    { _, _ -> startActivityForResult(folderIntent, 1) }.show()
                 }
                 else
-                    dialog.show({ _, _ -> startActivityForResult(fileIntent, 0) })
+                    dialog.show()
             }
             binding.aboutBtn.setOnClickListener {
-                Dialog.warn("About", "what")
+                Ez.warnDialog("About", "what")
             }
             binding.launchBtn.setOnClickListener {
                 launch()
@@ -65,10 +74,7 @@ class Secretary(private val ma: MainActivity) {
     }
 
     fun onResume() {
-        ma.apply {
-            val permissionDialog =
-                Dialog.posBuilder("Permission Required", "click to grant", "GRANT")
-
+        me.apply {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
 
                 if (!Environment.isExternalStorageManager()) {
@@ -77,7 +83,7 @@ class Secretary(private val ma: MainActivity) {
                         Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
                         Uri.parse("package:$packageName"))
 
-                    permissionDialog.show({ _, _ -> startActivity(intent) })
+                    Ez.permissionDialog { me.startActivity(intent) }
                 }
             }
             else {
@@ -89,50 +95,49 @@ class Secretary(private val ma: MainActivity) {
                         Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         Uri.parse("package:$packageName"))
 
-                    if (neverAskPermissionsAgain)
-                        permissionDialog.show({ _, _ -> startActivity(intent) })
+                    if (neverAskAgain)
+                        Ez.permissionDialog { startActivity(intent) }
                     else
-                        permissionDialog.show({ _, _ ->
+                        Ez.permissionDialog {
                             ActivityCompat.requestPermissions(
-                                this,
-                                arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE), 0)
-                        })
+                                this, arrayOf(READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE), 0)
+                        }
                 }
             }
 
             val devStatus = Settings.Global.getInt(contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0)
             val adbStatus = Settings.Global.getInt(contentResolver, Settings.Global.ADB_ENABLED, 0)
+            val deviceInfoAction = Settings.ACTION_DEVICE_INFO_SETTINGS
+            val devAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS
             if (adbStatus != 1) {
-                val action =
-                    if (devStatus == 1) Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS
-                    else Settings.ACTION_DEVICE_INFO_SETTINGS
-
-                val adbDialog = Dialog.posBuilder("ADB is disabled", "click to enable", "ENABLE")
-                adbDialog.show({ _, _ -> startActivity(Intent(action)) })
+                if (devStatus != 1)
+                    Ez.adbDialog("啟用開發人員選項") { startActivity(Intent(deviceInfoAction)) }
+                else
+                    Ez.adbDialog("啟用USB偵錯") { startActivity(Intent(devAction)) }
             }
 
-            if (repairLF.exists()) {
-                repairLF.forEachLine {
+            if (repairFile.exists()) {
+                repairFile.forEachLine {
                     val (cookedPath, rawPath) = it.split("\t")
                     File(cookedPath).renameTo(File(rawPath))
                 }
-                repairLF.delete()
+                repairFile.delete()
 
-                Dialog.warn("Automatic Repair Performed", "due to unexpectedly termination")
+                Ez.warnDialog("Automatic Repair Performed", "due to unexpectedly termination")
             }
             genData(intent)
         }
     }
 
     fun clearAndUpdate() {
-        pendingFiles.clear()
-        totalFilesLength = 0
+        pending.clear()
+        totalLength = 0
         updateView()
     }
 
     fun updateView() {
         ui {
-            val count = pendingFiles.size
+            val count = pending.size
             if (count == 0) {
                 binding.launchBtn.isEnabled = false
                 binding.totalFilesSizeTv.text = getString(R.string.zero_byte)
@@ -140,7 +145,7 @@ class Secretary(private val ma: MainActivity) {
             }
             else {
                 binding.launchBtn.isEnabled = true
-                binding.totalFilesSizeTv.text = sizeWithUnit(totalFilesLength)
+                binding.totalFilesSizeTv.text = Ez.sizeWithUnit(totalLength)
                 binding.totalFilesCountTv.text =
                     if (count == 1) "1 File"
                     else "$count Files"

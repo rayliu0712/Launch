@@ -18,20 +18,19 @@ import rl.launch.databinding.ActivityMainBinding
 import java.io.File
 import java.util.TreeSet
 
-val pendingFiles = TreeSet<File> { f1, f2 -> f2.lastModified().compareTo(f1.lastModified()) }
-var totalFilesLength = 0L
-var neverAskPermissionsAgain = false
+val pending = TreeSet<File> { f1, f2 -> f2.lastModified().compareTo(f1.lastModified()) }
+var totalLength = 0L
+var neverAskAgain = false
+val sec = Secretary()
 
 class MainActivity : AppCompatActivity() {
     lateinit var binding: ActivityMainBinding
     lateinit var homeDir: File
-    lateinit var appExtDir: File
-    lateinit var repairLF: File
-    lateinit var launchLF: File
-    lateinit var moveLF: File
-    lateinit var clientKF: File
-    lateinit var launchCF: File
-    private val sec = Secretary(this)
+    lateinit var repairFile: File
+    lateinit var launchFile: File
+    lateinit var moveFile: File
+    lateinit var keyA: File
+    lateinit var keyB: File
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,6 +43,7 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
+        sec.setThis(this)
         sec.onCreate()
     }
 
@@ -62,7 +62,7 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.shouldShowRequestPermissionRationale(this, permissions[0]) ||
                     ActivityCompat.shouldShowRequestPermissionRationale(this, permissions[1])
 
-        neverAskPermissionsAgain = !shouldShowRationale
+        neverAskAgain = !shouldShowRationale
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -121,7 +121,7 @@ class MainActivity : AppCompatActivity() {
                 val pair = name to size
 
                 if (!hashSet.add(pair))
-                    Dialog.warn("Duplicated File Detected", "this request will be ignored")
+                    Ez.warnDialog("Duplicated File", "this file will not be launched")
             }
             cursor.close()
         }
@@ -141,10 +141,10 @@ class MainActivity : AppCompatActivity() {
                 continue
 
             hashSet.remove(pair)
-            if (!pendingFiles.add(file))
-                Dialog.warn("Duplicated File Detected", "this request will be ignored")
+            if (!pending.add(file))
+                Ez.warnDialog("Duplicated File", "this file will not be launched")
             else
-                totalFilesLength += totalLength(file)
+                totalLength += Ez.totalLength(file)
         }
 
         sec.updateView()
@@ -153,28 +153,28 @@ class MainActivity : AppCompatActivity() {
     fun launch() {
         sec.setBtnEnable(false)
 
-        var available = pendingFiles.size
+        var available = pending.size
         val repairList = arrayListOf<Pair<File, File>>()
 
-        for (raw in pendingFiles) {
+        for (raw in pending) {
             if (!raw.exists()) {
                 available--
-                Dialog.warn("File Not Exist", "request for this file will be ignored")
+                Ez.warnDialog("File Not Exist", "this file will not be launched")
                 continue
             }
 
             var cooked = raw
-            if (isNotASCII(raw.absolutePath)) {
-                cooked = File(appExtDir, "${raw.hashCode()}")
+            if (Ez.isNotASCII(raw.absolutePath)) {
+                cooked = File(filesDir, "${raw.hashCode()}")
 
                 repairList.add(cooked to raw)
-                repairLF.appendText("${cooked.absolutePath}\t${raw.absolutePath}")
-                moveLF.appendText("${cooked.name}\t${raw.name}")
+                repairFile.appendText("${cooked.absolutePath}\t${raw.absolutePath}")
+                moveFile.appendText("${cooked.name}\t${raw.name}")
 
                 raw.renameTo(cooked)
             }
 
-            launchLF.appendText(cooked.name)
+            launchFile.appendText(cooked.name)
         }
 
         if (available == 0)
@@ -182,9 +182,17 @@ class MainActivity : AppCompatActivity() {
 
         sec.toast("LAUNCH!")
         lifecycleScope.launch {
-            while (!launchCF.exists()) {
-                clientKF.writeText("${System.currentTimeMillis()}")
-                delay(250)
+            for (i in 0 until 10) {
+                if (keyA.exists()) {
+                    sec.toast("connected")
+                    break
+                }
+                else
+                    delay(100)
+            }
+
+            while (!keyB.exists()) {
+                delay(1000)
             }
             sec.toast("LAUNCH COMPLETED")
 
@@ -192,11 +200,9 @@ class MainActivity : AppCompatActivity() {
                 cooked.renameTo(raw)
             }
 
-            repairLF.delete()
-            launchLF.delete()
-            moveLF.delete()
-            clientKF.delete()
-            launchCF.delete()
+            repairFile.delete()
+            launchFile.delete()
+            moveFile.delete()
 
             sec.setBtnEnable(true)
             sec.clearAndUpdate()

@@ -5,9 +5,10 @@ cmd /c 'ftype Microsoft.PowerShellScript.1="%SystemRoot%\system32\WindowsPowerSh
 kill -Name explorer -Force; explorer
 "@ > $null
 
-$host.UI.RawUI.WindowTitle = "Commander"
-mkdir Received *> $null
-cd Received
+$appDir = "/sdcard/Android/data/rl.launch/files"
+$host.UI.RawUI.WindowTitle = "Server"
+mkdir "rl.launch" *> $null
+cd "rl.launch"
 
 while ($true) {
     $output = adb shell "getprop ro.product.model" 2>&1 | Out-String
@@ -29,14 +30,11 @@ while ($true) {
 }
 echo " [ Waiting For Launch ]"
 
-
 while ($true) {
-    adb shell "touch /sdcard/Android/data/rl.launch/files/Key"
-    sleep 0.5
-    $output = adb shell "[[ -f /sdcard/Android/data/rl.launch/files/Launch_List.txt ]] && echo E || echo N"
+    $output = adb shell "[[ -f $appDir/launch.txt ]] && echo E || echo N"
     $output = $output.Trim()
     if ($output -eq "E") {
-        clear
+        adb shell "touch $appDir/key_a"
         break
     }
 }
@@ -44,7 +42,7 @@ while ($true) {
 $stopwatch = [System.Diagnostics.Stopwatch]::new()
 $stopwatch.Start()
 
-adb pull "/sdcard/Android/data/rl.launch/files/Launch_List.txt" > $null
+adb pull "$appDir/launch.txt" > $null
 [String]$LaunchList = cat Launch_List.txt -Raw -Encoding utf8
 [String[]]$LaunchList = $LaunchList.Trim().Split("`n")
 $size = $LaunchList.Length
@@ -56,7 +54,8 @@ for ($i = 0; $i -lt $size; $i++) {
     $host.UI.RawUI.WindowTitle = "$( $i + 1 ) / $size"
 }
 
-adb pull "/sdcard/Android/data/rl.launch/files/Move_List.txt" > $null
+
+adb pull "$appDir/move.txt" > $null
 [String]$MoveList = cat Move_List.txt -Raw -Encoding utf8
 [String[]]$MoveList = $MoveList.Trim().Split("`n")
 $size = $MoveList.Length
@@ -70,7 +69,7 @@ for ($i = 0; $i -lt $size; $i++) {
 }
 
 $stopwatch.Stop()
-adb shell "touch /sdcard/Android/data/rl.launch/files/LAUNCH_COMPLETED"
+adb shell "touch $appDir/key_b"
 
 echo " Completed. Received $size files, uses $( $stopwatch.Elapsed.TotalSeconds )s `n"
 for ($i = 10; $i -ge 0; $i--) {
@@ -80,7 +79,7 @@ for ($i = 10; $i -ge 0; $i--) {
 
 
 #while ($true) {
-#    $ClientKey = adb shell "cat /sdcard/Android/data/rl.launch/files/Client_Key.txt" 2> $null | Out-String
+#    $ClientKey = adb shell "cat $appExtDir/Client_Key.txt" 2> $null | Out-String
 #    if ($ClientKey -eq "") {
 #        $ClientKey = "0"
 #    }
