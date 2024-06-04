@@ -1,8 +1,6 @@
 # https://github.com/rayliu0712/Launch
-@"
-start PowerShell 'Set-ExecutionPolicy RemoteSigned' -Verb RunAs
-cmd /c 'ftype Microsoft.PowerShellScript.1="%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe" "%1"'
-"@ > $null
+
+$OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = [Text.UTF8Encoding]::UTF8
 
 function deshell([String]$command) {
     adb shell run-as rl.launch "$command"
@@ -24,6 +22,7 @@ while ($true) {
     else {
         deshell "touch ./files/key_a"
         mkdir Pulled *> $null
+        cd Pulled
         $launchList = $output.Trim().Split("`n")
         $size = $launchList.Length
         break
@@ -35,7 +34,7 @@ $stopwatch.Start()
 
 for ($i = 0; $i -lt $size; $i++) {
     $launch = $launchList[$i]
-    adb pull "$launch" Pulled
+    adb pull "$launch"
     $host.UI.RawUI.WindowTitle = "$( $i + 1 ) / $size"
 }
 
@@ -54,8 +53,9 @@ if ($null -ne $moveList) {
 $stopwatch.Stop()
 deshell "touch ./files/key_b"
 
-echo " Completed. Pulled $size files, uses $( $stopwatch.Elapsed.TotalSeconds )s `n"
-for ($i = 10; $i -ge 0; $i--) {
+cd ..
+echo " Completed. Pulled $size files, uses $($stopwatch.Elapsed.TotalSeconds.ToString("F2") )s `n"
+for ($i = 666; $i -ge 0; $i--) {
     Write-Host -NoNewline "`r Exit After $i`s "
     sleep 1
 }

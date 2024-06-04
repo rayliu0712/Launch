@@ -1,12 +1,7 @@
 <resources>
     <string name="app_name">Launch</string>
-    <string name="about">&lt;about&gt;</string>
-    <string name="grant">&lt;grant&gt;</string>
-    <string name="enable">&lt;enable&gt;</string>
-    <string name="permission_required">Permission Required</string>
-    <string name="adb_required">ADB Required</string>
-    <string name="clear">&lt;clear&gt;</string>
-    <string name="pick">&lt;pick&gt;</string>
-    <string name="no_file">No File</string>
-    <string name="zero_byte">0 B</string>
+    <string name="about">ABOUT</string>
+    <string name="clear">CLEAR</string>
+    <string name="pick">PICK</string>
+    <string name="untrashed_hidden_files">Untrashed\nHidden Files</string>
 </resources>
