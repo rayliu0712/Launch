@@ -10,6 +10,8 @@ import android.os.Build
 import android.os.Environment
 import android.provider.OpenableColumns
 import android.provider.Settings
+import android.widget.ImageView
+import android.widget.TextView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.documentfile.provider.DocumentFile
@@ -49,6 +51,34 @@ object Com {
             pickBtn.isEnabled = isEnable
             aboutBtn.isEnabled = isEnable
             launchBtn.isEnabled = isEnable && pending.isNotEmpty()
+        }
+    }
+
+    fun about() {
+        val aboutLayout = me.layoutInflater.inflate(R.layout.about_layout, null)
+        val icon = aboutLayout.findViewById<ImageView>(R.id.icon)
+        val date = aboutLayout.findViewById<TextView>(R.id.date)
+        val dialog = Ez.dialog(true)
+            .setTitle("關於Launch")
+            .setView(aboutLayout)
+            .show()
+
+        icon.setOnClickListener {
+            it.rotation = (it.rotation - 45) % 360
+            if (it.rotation == -315f) {
+                dialog.setTitle("\uD83C\uDF82\uD83C\uDF82\uD83C\uDF82")
+                date.text = me.getString(R.string.birthday)
+            }
+            else {
+                dialog.setTitle("關於Launch")
+                date.text = me.getString(R.string.last_modified_date)
+            }
+        }
+
+        date.setOnClickListener {
+            Ez.url(
+                if (icon.rotation == -315f) "https://www.facebook.com/profile.php?id=61551233015895"
+                else "https://github.com/rayliu0712/Launch")
         }
     }
 
@@ -216,7 +246,7 @@ object Com {
         for (raw in pending) {
             var cooked = raw
             if (Ez.isNotASCII(raw.absolutePath)) {
-                cooked = File(raw.parent, "${raw.hashCode()}")
+                cooked = File(raw.parent, Ez.sha256(raw.absolutePath + System.currentTimeMillis()))
 
                 repairList.add(cooked to raw)
                 repairFile.appendText("${cooked.absolutePath}\t${raw.absolutePath}\n")
