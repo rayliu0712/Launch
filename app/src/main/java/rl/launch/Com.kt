@@ -7,9 +7,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Build.VERSION.SDK_INT
 import android.os.Environment
 import android.provider.OpenableColumns
 import android.provider.Settings
+import android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.app.ActivityCompat
@@ -21,37 +23,32 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import rl.launch.MainActivity.Companion.me
-import java.io.File
 
 object Com {
     private suspend fun <T> ui(block: suspend CoroutineScope.() -> T): T =
         withContext(Dispatchers.Main, block)
 
-    fun updateView(clear: Boolean = false) {
-        if (clear) {
-            repairFile.delete()
-            launchFile.delete()
-            moveFile.delete()
-            keyA.delete()
-            keyB.delete()
-            pending.clear()
-        }
+    fun clear() {
+        launchFile.delete()
+        keyA.delete()
+        keyB.delete()
+        pending.clear()
+    }
 
+    fun updateView() {
         val count = pending.size
         me.binding.launchBtn.isEnabled = (count != 0)
-        me.binding.totalFilesSizeTv.text = Ez.totalSize()
+        me.binding.totalFilesSizeTv.text = Ez.sizeTv()
         me.binding.totalFilesCountTv.text =
             if (count <= 1) "$count File"
             else "$count Files"
     }
 
     fun setBtnEnable(isEnable: Boolean) {
-        me.binding.apply {
-            clearBtn.isEnabled = isEnable
-            pickBtn.isEnabled = isEnable
-            aboutBtn.isEnabled = isEnable
-            launchBtn.isEnabled = isEnable && pending.isNotEmpty()
-        }
+        me.binding.clearBtn.isEnabled = isEnable
+        me.binding.pickBtn.isEnabled = isEnable
+        me.binding.aboutBtn.isEnabled = isEnable
+        me.binding.launchBtn.isEnabled = isEnable && pending.isNotEmpty()
     }
 
     fun about() {
@@ -64,8 +61,8 @@ object Com {
             .show()
 
         icon.setOnClickListener {
-            it.rotation = (it.rotation - 45) % 360
-            if (it.rotation == -315f) {
+            it.rotation = (it.rotation + 45) % 360
+            if (it.rotation == 45f) {
                 dialog.setTitle("\uD83C\uDF82\uD83C\uDF82\uD83C\uDF82")
                 date.text = me.getString(R.string.birthday)
             }
@@ -77,53 +74,47 @@ object Com {
 
         date.setOnClickListener {
             Ez.url(
-                if (icon.rotation == -315f) "https://www.facebook.com/profile.php?id=61551233015895"
+                if (icon.rotation == 45f) "https://www.facebook.com/profile.php?id=61551233015895"
                 else "https://github.com/rayliu0712/Launch")
         }
     }
 
     fun grant() {
-        me.apply {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        if (SDK_INT >= 30) {
+            if (!Environment.isExternalStorageManager()) {
+                val intent = Intent(
+                    ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                    Uri.parse("package:rl.launch"))
+                Ez.permissionDialog { startActivity(intent) }
+            }
+        }
+        else {
+            val read = ContextCompat.checkSelfPermission(me, READ_EXTERNAL_STORAGE)
+            val write = ContextCompat.checkSelfPermission(me, WRITE_EXTERNAL_STORAGE)
+            if (read == PackageManager.PERMISSION_DENIED || write == PackageManager.PERMISSION_DENIED) {
+                val intent = Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:rl.launch"))
 
-                if (!Environment.isExternalStorageManager()) {
-
-                    val intent = Intent(
-                        Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                        Uri.parse("package:$packageName"))
-
+                if (neverAskAgain)
                     Ez.permissionDialog { startActivity(intent) }
-                }
-            }
-            else {
-                val read = ContextCompat.checkSelfPermission(this, READ_EXTERNAL_STORAGE)
-                val write = ContextCompat.checkSelfPermission(this, WRITE_EXTERNAL_STORAGE)
-                if (read == PackageManager.PERMISSION_DENIED || write == PackageManager.PERMISSION_DENIED) {
-
-                    val intent = Intent(
-                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                        Uri.parse("package:$packageName"))
-
-                    if (neverAskAgain)
-                        Ez.permissionDialog { startActivity(intent) }
-                    else
-                        Ez.permissionDialog {
-                            ActivityCompat.requestPermissions(
-                                this, arrayOf(READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE), 0)
-                        }
-                }
-            }
-
-            val devStatus = Settings.Global.getInt(contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0)
-            val adbStatus = Settings.Global.getInt(contentResolver, Settings.Global.ADB_ENABLED, 0)
-            val deviceInfoAction = Settings.ACTION_DEVICE_INFO_SETTINGS
-            val devAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS
-            if (adbStatus != 1) {
-                if (devStatus != 1)
-                    Ez.adbDialog { startActivity(Intent(deviceInfoAction)) }
                 else
-                    Ez.adbDialog { startActivity(Intent(devAction)) }
+                    Ez.permissionDialog {
+                        ActivityCompat.requestPermissions(
+                            this, arrayOf(READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE), 0)
+                    }
             }
+        }
+
+        val devStatus = Settings.Global.getInt(me.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0)
+        val adbStatus = Settings.Global.getInt(me.contentResolver, Settings.Global.ADB_ENABLED, 0)
+        val deviceInfoAction = Settings.ACTION_DEVICE_INFO_SETTINGS
+        val devAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS
+        if (adbStatus != 1) {
+            if (devStatus != 1)
+                Ez.adbDialog { startActivity(Intent(deviceInfoAction)) }
+            else
+                Ez.adbDialog { startActivity(Intent(devAction)) }
         }
     }
 
@@ -148,114 +139,85 @@ object Com {
             dialog.show()
     }
 
-    fun repair(isAccident: Boolean) {
-        if (!repairFile.exists())
-            return
-
-        repairFile.forEachLine {
-            val (cookedPath, rawPath) = it.split("\t")
-            File(cookedPath).renameTo(File(rawPath))
-        }
-        repairFile.delete()
-
-        if (isAccident)
-            Ez.warnDialog("意外終止", "已執行自動恢復")
-    }
-
     fun genData(intent: Intent) {
-        me.apply {
-            val uris: List<Uri> = when (intent.action) {
+        val uris: List<Uri> = when (intent.action) {
 
-                Intent.ACTION_SEND ->
-                    listOf(intent.getParcelableExtra(Intent.EXTRA_STREAM)!!)
+            Intent.ACTION_SEND ->
+                listOf(intent.getParcelableExtra(Intent.EXTRA_STREAM)!!)
 
-                Intent.ACTION_SEND_MULTIPLE ->
-                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)!!
+            Intent.ACTION_SEND_MULTIPLE ->
+                intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)!!
 
-                Intent.ACTION_OPEN_DOCUMENT -> {
-                    val clipData = intent.clipData
-                    if (clipData == null)
-                        listOf(intent.data!!)
-                    else
-                        (0 until clipData.itemCount).map { clipData.getItemAt(it).uri }
-                }
-
-                Intent.ACTION_MAIN -> {
-                    updateView()
-                    return
-                }
-
-                else -> listOf()
+            Intent.ACTION_OPEN_DOCUMENT -> {
+                val clipData = intent.clipData
+                if (clipData == null)
+                    listOf(intent.data!!)
+                else
+                    (0 until clipData.itemCount).map { clipData.getItemAt(it).uri }
             }
 
-            val hashSet = hashSetOf<Pair<String, Long>>()
-            for (uri in uris) {
-                val cursor = contentResolver.query(uri, null, null, null, null)!!
-                if (cursor.moveToFirst()) {
-                    val nameColumnIndex = cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME)
-                    val sizeColumnIndex = cursor.getColumnIndexOrThrow(OpenableColumns.SIZE)
-
-                    val name = cursor.getString(nameColumnIndex)
-                    val size = cursor.getLong(sizeColumnIndex)
-                    val pair = name to size
-                    val isDuplicated = pending.any { it.name == name && it.length() == size }
-
-                    if (isDuplicated || !hashSet.add(pair)) {
-                        Ez.warnDialog("檔案重複", "重複的${name}不會加入到名單中")
-                        continue
-                    }
-                }
-                cursor.close()
+            Intent.ACTION_MAIN -> {
+                updateView()
+                return
             }
 
-            // Intent.ACTION_OPEN_DOCUMENT_TREE
-            if (uris.isEmpty()) {
-                val documentFile = DocumentFile.fromTreeUri(this, intent.data!!)
-                val name = documentFile!!.name!!
-                val isDuplicated = pending.any { it.name == name && it.isDirectory }
-
-                if (isDuplicated || !hashSet.add(name to -1))
-                    Ez.warnDialog("檔案重複", "重複的${name}不會加入到名單中")
-            }
-
-            val possible = homeDir.walkTopDown()
-                .filter { hashSet.contains(it.name to Ez.specialLen(it)) }
-
-            for (file in possible) {
-                if (!pending.add(file))
-                    Ez.warnDialog("搜尋到相同的檔案", "${file.name}\n" +
-                            "採用 ${Ez.relPath(pending.filter { it.name == file.name }[0].parentFile!!)}\n" +
-                            "不採用 ${Ez.relPath(file.parentFile!!)}")
-            }
-
-            updateView()
+            else -> listOf()
         }
+
+        val hashSet = hashSetOf<Pair<String, Long>>()
+        for (uri in uris) {
+            val cursor = me.contentResolver.query(uri, null, null, null, null)!!
+            if (cursor.moveToFirst()) {
+                val nameColumnIndex = cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME)
+                val sizeColumnIndex = cursor.getColumnIndexOrThrow(OpenableColumns.SIZE)
+
+                val name = cursor.getString(nameColumnIndex)
+                val size = cursor.getLong(sizeColumnIndex)
+                val pair = name to size
+                val isDuplicated = pending.any { it.name == name && it.length() == size }
+
+                if (isDuplicated || !hashSet.add(pair)) {
+                    Ez.warnDialog("檔案重複", "重複的${name}不會加入到名單中")
+                    continue
+                }
+            }
+            cursor.close()
+        }
+
+        // Intent.ACTION_OPEN_DOCUMENT_TREE
+        if (uris.isEmpty()) {
+            val documentFile = DocumentFile.fromTreeUri(me, intent.data!!)!!
+            val name = documentFile.name!!
+            val isDuplicated = pending.any { it.name == name && it.isDirectory }
+
+            if (isDuplicated || !hashSet.add(name to -1))
+                Ez.warnDialog("檔案重複", "重複的${name}不會加入到名單中")
+        }
+
+        for (h in hashSet) {
+            val possibilities = Environment.getExternalStorageDirectory().walkTopDown().filter {
+                it.name == h.first && Ez.specialLen(it) == h.second
+            }.toList()
+
+            pending.add(possibilities[0])
+            for ((i, file) in possibilities.withIndex()) {
+                if (i == 0) continue
+                Ez.warnDialog("搜尋到相同的檔案", "${file.name}\n" +
+                        "採用 ${Ez.relPath(pending.filter { it.name == file.name }[0].parentFile!!)}\n" +
+                        "不採用 ${Ez.relPath(file.parentFile!!)}")
+            }
+        }
+
+        updateView()
     }
 
     fun launchEvent() {
-        val repairList = arrayListOf<Pair<File, File>>()
-        prepareLaunch(repairList)
+        launchFile.writeText("${pending.sumOf { Ez.length(it) }}\n" +
+                pending.joinToString("\n") { it.absolutePath })
 
         CoroutineScope(Dispatchers.IO).launch {
             if (connectServer())
-                startLaunch(repairList)
-        }
-    }
-
-    private fun prepareLaunch(repairList: ArrayList<Pair<File, File>>) {
-        for (raw in pending) {
-            var cooked = raw
-            if (Ez.isNotASCII(raw.absolutePath)) {
-                cooked = File(raw.parent, Ez.sha256(raw.absolutePath + System.currentTimeMillis()))
-
-                repairList.add(cooked to raw)
-                repairFile.appendText("${cooked.absolutePath}\t${raw.absolutePath}\n")
-                moveFile.appendText("${cooked.name}\t${raw.name}\n")
-
-                raw.renameTo(cooked)
-            }
-
-            launchFile.appendText("${cooked.absolutePath}\n")
+                startLaunch()
         }
     }
 
@@ -283,8 +245,8 @@ object Com {
                 ui { connectDialog.setTitle("與Server連接中 (${i / 20}s)") }
         }
 
+        launchFile.delete()
         ui {
-            repair(false)
             setBtnEnable(true)
             connectDialog.dismiss()
             if (!exit)
@@ -293,7 +255,7 @@ object Com {
         return false
     }
 
-    private suspend fun startLaunch(repairList: ArrayList<Pair<File, File>>) {
+    private suspend fun startLaunch() {
         lateinit var waitDialog: AlertDialog
         ui {
             waitDialog = Ez.dialog()
@@ -308,13 +270,10 @@ object Com {
             ui { waitDialog.setTitle("Launching (${++i}s)") }
         }
 
-        for ((cooked, raw) in repairList)
-            cooked.renameTo(raw)
-
+        clear()
         ui {
-            updateView(true)
+            updateView()
             setBtnEnable(true)
-
             waitDialog.setMessage("完成 !")
             waitDialog.setCancelable(true)
         }

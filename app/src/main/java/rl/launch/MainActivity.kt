@@ -2,12 +2,7 @@ package rl.launch
 
 import android.content.Intent
 import android.content.pm.PackageManager.PERMISSION_GRANTED
-import android.graphics.Color
-import android.net.Uri
 import android.os.Bundle
-import android.os.Environment
-import android.widget.ImageView
-import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -19,11 +14,7 @@ import java.util.TreeSet
 
 val pending = TreeSet<File> { f1, f2 -> f2.lastModified().compareTo(f1.lastModified()) }
 var neverAskAgain = false
-
-lateinit var homeDir: File
-lateinit var repairFile: File
 lateinit var launchFile: File
-lateinit var moveFile: File
 lateinit var keyA: File
 lateinit var keyB: File
 
@@ -46,10 +37,7 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-        homeDir = Environment.getExternalStorageDirectory()
-        repairFile = File(filesDir, "repair.txt")
         launchFile = File(filesDir, "launch.txt").apply { delete() }
-        moveFile = File(filesDir, "move.txt").apply { delete() }
         keyA = File(filesDir, "key_a").apply { delete() }
         keyB = File(filesDir, "key_b").apply { delete() }
 
@@ -59,7 +47,10 @@ class MainActivity : AppCompatActivity() {
         binding.clearBtn.setOnClickListener {
             Ez.dialog()
                 .setTitle("你確定嗎 ?")
-                .setPositiveButton("YES") { _, _ -> Com.updateView(true) }
+                .setPositiveButton("YES") { _, _ ->
+                    Com.clear()
+                    Com.updateView()
+                }
                 .setNegativeButton("NO", null)
                 .show()
         }
@@ -78,7 +69,6 @@ class MainActivity : AppCompatActivity() {
             return
 
         Com.grant()
-        Com.repair(true)
         Com.genData(intent)
     }
 
