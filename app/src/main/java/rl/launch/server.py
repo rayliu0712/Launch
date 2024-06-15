@@ -1,112 +1,117 @@
 #!/usr/bin/env python3
-''' https://github.com/rayliu0712/Launch 2024/06/12 '''
-from concurrent.futures import ThreadPoolExecutor
-from adbutils.errors import AdbError
-from adbutils import ShellReturn, adb
-from typing import List
-from tqdm import tqdm
-import subprocess
+# https://github.com/rayliu0712/Launch
 import asyncio
 import hashlib
+import os
+import os.path as op
 import shutil
+import subprocess
 import time
-import sys
-import os, os.path as op
-import re
-
-arg = sys.argv[1] if len(sys.argv) - 1 else None
-device = None
-target_path: str | List[str]
-target_size: int
-def transfer_fun(): pass
-def completed_fun(): pass
+from adbutils import AdbDevice, ShellReturn, adb
+from concurrent.futures import ThreadPoolExecutor
+from sys import argv, maxsize
+from typing import Callable
+from tqdm import tqdm
 
 
-''' handy function '''
-class ShResult:
-    def __init__(self, sr: ShellReturn):
-        self.fail = sr.returncode
-        self.succeed = not sr.returncode
-        self.output = sr.output
+class Device(AdbDevice):
+    class __ShResult:
+        def __init__(self, sr: ShellReturn):
+            self.succeed = sr.returncode == 0
+            self.fail = not self.succeed
+            self.output = sr.output
 
-def sh(cmd: str) -> ShResult:
-    return ShResult(device.shell2(cmd, rstrip=True))
+    def __init__(self, serial: str):
+        super().__init__(adb, serial)
 
-def runas(cmd: str) -> ShResult:
-    return sh(f'run-as rl.launch {cmd}')
+    def sh(self, cmd: str) -> __ShResult:
+        return Device.__ShResult(self.shell2(cmd, rstrip=True))
 
-def pwd(path: str) -> ShResult:
-    return sh(f'cd "{path}" && pwd')
+    def runas(self, cmd: str) -> __ShResult:
+        return self.sh(f'run-as rl.launch {cmd}')
 
-def sha256(msg: str) -> str:
-    return hashlib.sha256(bytes(f'{msg}', 'utf-8')).hexdigest()
+    def pwd(self, cmd: str = '') -> __ShResult:
+        return self.sh(f'cd "{sdcard}" && {cmd} {'' if cmd == '' else ';'}pwd')
 
-def size(path: str) -> int:
-    if not op.exists(path):
-        return 0
-    
-    if not op.isdir(path):
-        return op.getsize(path)
-    
-    total_size = 0
-    for r, _, fs in os.walk(path):
-        total_size += sum(op.getsize(op.join(r, f)) for f in fs)
-    return total_size
+    def exists(self, path: str) -> bool:
+        return self.sh(f'[[ -e "{path}" ]]').succeed
 
-def monitor_ts() -> int:
-    if isinstance(target_path, str):
-        # sh always succeed here
-        sr = sh("find '%s' -type f -exec du -cb {} + | grep total$ | awk '{print $1}'" % target_path) 
+
+class U:
+    @staticmethod
+    def sha256(string: str) -> str:
+        return hashlib.sha256(bytes(string, 'utf-8')).hexdigest()
+
+    @staticmethod
+    def safe_name(path: str, checker: Callable[[str], bool], return_full: bool) -> str:
+        pwe, ext = op.splitext(path)
+        n = ''
+        for x in range(1, maxsize):
+            if checker(f'{pwe}{n}{ext}'):
+                n = f' ({x})'
+            else:
+                if return_full:
+                    return f'{pwe}{n}{ext}'
+                else:
+                    return op.basename(f'{pwe}{n}{ext}')
+
+    @staticmethod
+    def local_size(path: str) -> int:
+        if not op.exists(path):
+            return 0
+
+        if not op.isdir(path):
+            return op.getsize(path)
+
+        size = 0
+        for r, _, fs in os.walk(path):
+            size += sum(op.getsize(op.join(r, f)) for f in fs)
+        return size
+
+    @staticmethod
+    def remote_size(path: str) -> int:
         try:
-            return int(sr.output)
+            # sh always succeed here
+            return int(d.sh("find '%s' -type f -exec du -cb {} + | grep total$ | awk '{print $1}'" % path).output)
         except ValueError:
             return 0
-    else:
-        return sum(size(t) for t in target_path)
 
-async def tq():
+
+async def async_tqdm():
+    # Requires global var "total_size: int" "monitor: Callable[[], int]"
     counter = 0
-    with tqdm(total=target_size, unit='B', unit_scale=True, unit_divisor=1024) as pbar:
-        while counter < target_size:
-            n = monitor_ts() - counter
+    with tqdm(total=total_size, unit='B', unit_scale=True, unit_divisor=1024) as pbar:
+        while counter < total_size:
+            n = monitor() - counter
             counter += n
             pbar.update(n)
-''' handy function '''
 
 
-
-''' start '''
-while device is None:
+while True:
     dl = adb.device_list()
-    dl_len = len(dl)
 
-    if dl_len == 1:
-        device = dl[0]
-        continue
+    if len(dl) == 1:
+        d = Device(dl[0].serial)
+        break
 
-    print(f'\n{dl_len} device(s)')
+    print(f'\n{len(dl)} device(s)')
     for i, it in enumerate(dl):
         print(f'[{i}] {it.prop.model}')
 
     try:
-        device = dl[int(input('> ').strip())]
+        d = Device(dl[int(input('> ').strip())].serial)
+        break
     except ValueError:
         pass
     except IndexError:
         pass
 
-if arg is None:
-    launch_list = []
-    while 1:
-        sr = runas("cat ./files/launch.txt")
+del argv[0]
+if not argv:
+    while True:
+        sr = d.runas("cat ./files/launch.txt")
         if sr.succeed:
-            print('\r', ' '*20, end='\r', flush=True)
-
-            launch_list = sr.output.splitlines()
-            target_size = int(launch_list.pop(0))
-            target_path = [ it.split('/')[-1] for it in launch_list ]  # relative path
-
-            runas('touch ./files/key_a')
+            d.runas('touch ./files/key_a')
             break
         else:
             print('Waiting For Launch \\', end='\r', flush=True)
@@ -118,138 +123,108 @@ if arg is None:
             print('Waiting For Launch -', end='\r', flush=True)
             time.sleep(0.25)
 
-    for i, it in enumerate(launch_list):
-        pure, ext = op.splitext(target_path[i])
-        clone = ''
-        for j in range(1, sys.maxsize):
-            if op.exists(f'{pure}{clone}{ext}'):
-                clone = f' ({j})'
-            else:
-                break
-        target_path[i] = f'{pure}{clone}{ext}'
+    src_s = sr.output.splitlines()
+    total_size = int(src_s.pop(0))
+    dst_s = [op.basename(src) for src in src_s]
+
+
+    def monitor() -> int:
+        return sum(U.local_size(dst) for dst in dst_s)
+
 
     def transfer_fun():
-        for i, it in enumerate(launch_list):
-            device.sync.pull(it, target_path[i])
+        for i, src in enumerate(src_s):
+            d.sync.pull(src, U.safe_name(dst_s[i], op.exists, True))
+
 
     def completed_fun():
-        for it in target_path:
-            for r, _, fs in os.walk(it):
-                [ os.remove(op.join(r, f)) for f in fs if f.startswith('.trashed') ]
-        runas('touch ./files/key_b')
+        for dst in dst_s:
+            for r, _, fs in os.walk(dst):
+                [os.remove(op.join(r, f)) for f in fs if f.startswith('.trashed')]
+        d.runas('touch ./files/key_b')
 
 else:
-    if not op.exists(arg):
-        raise FileNotFoundError(f'檔案 "{arg}" 不存在')
-
     print('選擇Push目的地')
     print('[ Enter ] ./Download')
     print('[   1   ] ./Documents')
     print('[   2   ] ./Pictures')
     print('[   3   ]   AstroDX')
     print('[   4   ]   Custom')
-    sdcard = ''
-    chosen = ''
 
-    while sdcard == '':
+    while True:
         chosen = input('> ').strip()
-        match (chosen):
-            case '':
-                sdcard = '/sdcard/Download'
-            case '1':
-                sdcard = '/sdcard/Documents'
-            case '2':
-                sdcard = '/sdcard/Pictures'
-            case '3':
-                sdcard = '/sdcard/Android/data/com.Reflektone.AstroDX/files/levels'
-                if pwd(sdcard).fail:
-                    sdcard = ''
-                    print('"./Android/data/com.Reflektone.AstroDX/files/levels" 不存在')
-                    continue
-            case '4':
-                sdcard = '/sdcard'
-            case _:
-                continue
+        try:
+            sdcard = {'': '/sdcard/Download',
+                      '1': '/sdcard/Documents',
+                      '2': '/sdcard/Pictures',
+                      '3': '/sdcard/Android/data/com.Reflektone.AstroDX/files/levels',
+                      '4': '/sdcard'}[chosen]
+            if chosen == '3' and d.pwd().fail:
+                sdcard = ''
+                print('"./Android/data/com.Reflektone.AstroDX/files/levels" 不存在')
+            else:
+                break
+        except KeyError:
+            pass
 
     if chosen in ['3', '4']:
         print('\n"ok" 選擇當前目錄；可以使用shell命令')
-        while 1:
+        while True:
             cmd = input(f'{sdcard} > ')
-            special = cmd.strip().lower()
 
-            if special == 'ok':
-                hd = sha256(f'{sdcard}{time.time()}')
-                if sh(f'cd "{sdcard}"; touch {hd}; rm {hd}').succeed:
+            if cmd.endswith('\\'):
+                print('命令不能以 "\\" 結尾')
+
+            elif cmd == 'ok':
+                hd = U.sha256(f'{sdcard}{time.time()}')
+                if d.pwd(f'touch {hd}; rm {hd}').succeed:
                     break
                 else:
                     print('只能Push至 "/sdcard/..."')
 
-            elif cmd.endswith('\\'):
-                print('命令不能以 "\\" 結尾')
-            
-            elif special in ['clear', 'cls']:
+            elif cmd in ['clear', 'cls']:
                 os.system('cls' if os.name == 'nt' else 'clear')
-            
-            elif cmd.startswith('cd '):
-                input_dir = re.sub('^cd ', '', cmd).strip('"').strip("'")
-
-                if not input_dir.startswith('/'):
-                    input_dir = f'{sdcard}/{input_dir}'
-
-                sr = pwd(input_dir)
-                if sr.succeed:
-                    sdcard = sr.output.replace('//', '/')
-                else:
-                    print(sr.output)
 
             else:
-                out = sh(f'cd "{sdcard}"; {cmd}; pwd').output.splitlines()
+                out = d.pwd(cmd).output.splitlines()
                 sdcard = out.pop().replace('//', '/')
                 for o in out:
                     print(o)
 
+    total_size = sum(U.local_size(a) for a in argv)
+    hd = U.sha256(f'{time.time()}')
+    os.mkdir(hd)
+    dst_s = []
 
-    basename = op.basename(arg)
-    target_size = size(arg)
-    if op.isdir(arg):
-        hd = sha256(f'{arg}{time.time()}')
-        target_path = f'/sdcard/Download/{hd}'
-        os.mkdir(hd)
-        shutil.move(arg, hd)
+    for it in argv:
+        basename = op.basename(it)
+        dst = op.join(hd, U.safe_name(f'{sdcard}/{basename}', d.exists, False))
+        dst_s.append(dst)
+        shutil.move(it, dst)
 
-        def transfer_fun():
-            subprocess.check_output(f'adb push {hd} {target_path}')
-        
-        def completed_fun():
-            sh(f'cd {target_path}; mv * "{sdcard}"; rmdir ../{hd}')
-            shutil.move(op.join(hd, basename), arg)
-            os.rmdir(hd)
-        
-    else:
-        pure, ext = op.splitext(basename)
-        clone = ''
-        for j in range(1, sys.maxsize):
-            if sh(f'ls "{sdcard}/{pure}{clone}{ext}"').succeed:
-                clone = f' ({j})'
-            else:
-                break
-        target_path = f'{sdcard}/{pure}{clone}{ext}'
 
-        def transfer_fun():
-            device.sync.push(arg, target_path)
+    def monitor() -> int:
+        return U.remote_size(f'/sdcard/Download/{hd}')
+
+
+    def transfer_fun():
+        subprocess.check_output(f'adb push {hd} /sdcard/Download/{hd}')
+
+
+    def completed_fun():
+        d.sh(f'cd /sdcard/Download/{hd}; mv * "{sdcard}"; rmdir ../{hd}')
+        [shutil.move(dst, src) for dst, src in zip(dst_s, argv)]
+        os.rmdir(hd)
 
 
 async def main():
     loop = asyncio.get_running_loop()
 
     with ThreadPoolExecutor() as pool:
-
         transfer_task = loop.run_in_executor(pool, transfer_fun)
-        await asyncio.gather(transfer_task, tq())
+        await asyncio.gather(transfer_task, async_tqdm())
         completed_fun()
+        input('Press Enter to exit ...')
 
-        for i in range(10, 0, -1):
-            print(f'Exit After {i}s ', end='\r')
-            time.sleep(1)
 
 asyncio.run(main())
