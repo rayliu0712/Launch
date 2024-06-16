@@ -20,14 +20,10 @@ lateinit var keyB: File
 
 class MainActivity : AppCompatActivity() {
     lateinit var binding: ActivityMainBinding
-
-    companion object {
-        lateinit var me: MainActivity
-    }
+    private val com = Com(this)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        me = this
         binding = ActivityMainBinding.inflate(layoutInflater)
         enableEdgeToEdge()
         setContentView(binding.root)
@@ -42,37 +38,42 @@ class MainActivity : AppCompatActivity() {
         keyB = File(filesDir, "key_b").apply { delete() }
 
         binding.aboutBtn.setOnClickListener {
-            Com.about()
+            com.about()
         }
         binding.clearBtn.setOnClickListener {
-            Ez.dialog()
+            Ez.dialog(this)
                 .setTitle("你確定嗎 ?")
                 .setPositiveButton("YES") { _, _ ->
-                    Com.clear()
-                    Com.updateView()
+                    com.clear()
+                    com.updateView()
                 }
                 .setNegativeButton("NO", null)
                 .show()
         }
         binding.pickBtn.setOnClickListener {
-            Com.pick()
+            com.pick()
         }
         binding.launchBtn.setOnClickListener {
-            Com.setBtnEnable(false)
-            Com.launchEvent()
+            com.setBtnEnable(false)
+            com.launchEvent()
         }
+
+        com.genData(intent)
     }
 
     override fun onResume() {
         super.onResume()
-        if (launchFile.exists())
-            return
-
-        Com.grant()
-        Com.genData(intent)
+        com.grant()
+        com.updateView()
+        if (intent.action !in arrayOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE))
+            com.genData(intent)
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
         if (grantResults[0] == PERMISSION_GRANTED && grantResults[1] == PERMISSION_GRANTED)
@@ -92,8 +93,8 @@ class MainActivity : AppCompatActivity() {
             return
 
         when (requestCode) {
-            0 -> Com.genData(data!!.apply { action = Intent.ACTION_OPEN_DOCUMENT })
-            1 -> Com.genData(data!!.apply { action = Intent.ACTION_OPEN_DOCUMENT_TREE })
+            0 -> com.genData(data!!.apply { action = Intent.ACTION_OPEN_DOCUMENT })
+            1 -> com.genData(data!!.apply { action = Intent.ACTION_OPEN_DOCUMENT_TREE })
         }
     }
 }

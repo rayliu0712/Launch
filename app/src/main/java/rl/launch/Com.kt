@@ -22,9 +22,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import rl.launch.MainActivity.Companion.me
 
-object Com {
+class Com(private val me: MainActivity) {
     private suspend fun <T> ui(block: suspend CoroutineScope.() -> T): T =
         withContext(Dispatchers.Main, block)
 
@@ -55,7 +54,7 @@ object Com {
         val aboutLayout = me.layoutInflater.inflate(R.layout.about_layout, null)
         val icon = aboutLayout.findViewById<ImageView>(R.id.icon)
         val date = aboutLayout.findViewById<TextView>(R.id.date)
-        val dialog = Ez.dialog(true)
+        val dialog = Ez.dialog(me, true)
             .setTitle("關於Launch")
             .setView(aboutLayout)
             .show()
@@ -65,8 +64,7 @@ object Com {
             if (it.rotation == 45f) {
                 dialog.setTitle("\uD83C\uDF82\uD83C\uDF82\uD83C\uDF82")
                 date.text = me.getString(R.string.birthday)
-            }
-            else {
+            } else {
                 dialog.setTitle("關於Launch")
                 date.text = me.getString(R.string.last_modified_date)
             }
@@ -74,8 +72,10 @@ object Com {
 
         date.setOnClickListener {
             Ez.url(
+                me,
                 if (icon.rotation == 45f) "https://www.facebook.com/profile.php?id=61551233015895"
-                else "https://github.com/rayliu0712/Launch")
+                else "https://github.com/rayliu0712/Launch"
+            )
         }
     }
 
@@ -84,37 +84,43 @@ object Com {
             if (!Environment.isExternalStorageManager()) {
                 val intent = Intent(
                     ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                    Uri.parse("package:rl.launch"))
-                Ez.permissionDialog { startActivity(intent) }
+                    Uri.parse("package:rl.launch")
+                )
+                Ez.permissionDialog(me) { startActivity(intent) }
             }
-        }
-        else {
+        } else {
             val read = ContextCompat.checkSelfPermission(me, READ_EXTERNAL_STORAGE)
             val write = ContextCompat.checkSelfPermission(me, WRITE_EXTERNAL_STORAGE)
             if (read == PackageManager.PERMISSION_DENIED || write == PackageManager.PERMISSION_DENIED) {
                 val intent = Intent(
                     Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                    Uri.parse("package:rl.launch"))
+                    Uri.parse("package:rl.launch")
+                )
 
                 if (neverAskAgain)
-                    Ez.permissionDialog { startActivity(intent) }
+                    Ez.permissionDialog(me) { startActivity(intent) }
                 else
-                    Ez.permissionDialog {
+                    Ez.permissionDialog(me) {
                         ActivityCompat.requestPermissions(
-                            this, arrayOf(READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE), 0)
+                            this, arrayOf(READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE), 0
+                        )
                     }
             }
         }
 
-        val devStatus = Settings.Global.getInt(me.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0)
+        val devStatus = Settings.Global.getInt(
+            me.contentResolver,
+            Settings.Global.DEVELOPMENT_SETTINGS_ENABLED,
+            0
+        )
         val adbStatus = Settings.Global.getInt(me.contentResolver, Settings.Global.ADB_ENABLED, 0)
         val deviceInfoAction = Settings.ACTION_DEVICE_INFO_SETTINGS
         val devAction = Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS
         if (adbStatus != 1) {
             if (devStatus != 1)
-                Ez.adbDialog { startActivity(Intent(deviceInfoAction)) }
+                Ez.adbDialog(me) { startActivity(Intent(deviceInfoAction)) }
             else
-                Ez.adbDialog { startActivity(Intent(devAction)) }
+                Ez.adbDialog(me) { startActivity(Intent(devAction)) }
         }
     }
 
@@ -124,23 +130,27 @@ object Com {
         fileIntent.addCategory(Intent.CATEGORY_OPENABLE)
         fileIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
 
-        val dialog = Ez.dialog(true)
+        val dialog = Ez.dialog(me, true)
             .setTitle("File or Folder(Android 5.0+) ?")
             .setPositiveButton("FILE")
             { _, _ -> me.startActivityForResult(fileIntent, 0) }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        if (SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             val folderIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
 
             dialog.setNegativeButton("FOLDER")
             { _, _ -> me.startActivityForResult(folderIntent, 1) }.show()
-        }
-        else
+        } else
             dialog.show()
     }
 
     fun genData(intent: Intent) {
         val uris: List<Uri> = when (intent.action) {
+
+            Intent.ACTION_MAIN -> {
+                updateView()
+                return
+            }
 
             Intent.ACTION_SEND ->
                 listOf(intent.getParcelableExtra(Intent.EXTRA_STREAM)!!)
@@ -156,12 +166,9 @@ object Com {
                     (0 until clipData.itemCount).map { clipData.getItemAt(it).uri }
             }
 
-            Intent.ACTION_MAIN -> {
-                updateView()
-                return
-            }
+            Intent.ACTION_OPEN_DOCUMENT_TREE -> listOf()
 
-            else -> listOf()
+            else -> return
         }
 
         val hashSet = hashSetOf<Pair<String, Long>>()
@@ -177,7 +184,7 @@ object Com {
                 val isDuplicated = pending.any { it.name == name && it.length() == size }
 
                 if (isDuplicated || !hashSet.add(pair)) {
-                    Ez.warnDialog("檔案重複", "重複的${name}不會加入到名單中")
+                    Ez.warnDialog(me, "檔案重複", "重複的${name}不會加入到名單中")
                     continue
                 }
             }
@@ -191,7 +198,7 @@ object Com {
             val isDuplicated = pending.any { it.name == name && it.isDirectory }
 
             if (isDuplicated || !hashSet.add(name to -1))
-                Ez.warnDialog("檔案重複", "重複的${name}不會加入到名單中")
+                Ez.warnDialog(me, "檔案重複", "重複的${name}不會加入到名單中")
         }
 
         for (h in hashSet) {
@@ -202,9 +209,12 @@ object Com {
             pending.add(possibilities[0])
             for ((i, file) in possibilities.withIndex()) {
                 if (i == 0) continue
-                Ez.warnDialog("搜尋到相同的檔案", "${file.name}\n" +
-                        "採用 ${Ez.relPath(pending.filter { it.name == file.name }[0].parentFile!!)}\n" +
-                        "不採用 ${Ez.relPath(file.parentFile!!)}")
+                Ez.warnDialog(
+                    me,
+                    "搜尋到相同的檔案", "${file.name}\n" +
+                            "採用 ${Ez.relPath(pending.filter { it.name == file.name }[0].parentFile!!)}\n" +
+                            "不採用 ${Ez.relPath(file.parentFile!!)}"
+                )
             }
         }
 
@@ -225,7 +235,7 @@ object Com {
         var exit = false
         lateinit var connectDialog: AlertDialog
         ui {
-            connectDialog = Ez.dialog()
+            connectDialog = Ez.dialog(me)
                 .setTitle("與Server連接中 (30s)")
                 .setPositiveButton("EXIT") { _, _ ->
                     exit = true
@@ -250,7 +260,7 @@ object Com {
             setBtnEnable(true)
             connectDialog.dismiss()
             if (!exit)
-                Ez.warnDialog("連接失敗", "請檢查Server是否啟動和USB連接設定")
+                Ez.warnDialog(me, "連接失敗", "請檢查Server是否啟動和USB連接設定")
         }
         return false
     }
@@ -258,7 +268,7 @@ object Com {
     private suspend fun startLaunch() {
         lateinit var waitDialog: AlertDialog
         ui {
-            waitDialog = Ez.dialog()
+            waitDialog = Ez.dialog(me)
                 .setTitle("Launching (0s)")
                 .setMessage("結束前請不要關閉應用程式")
                 .show()
