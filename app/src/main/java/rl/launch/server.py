@@ -31,7 +31,11 @@ class Device(AdbDevice):
         return self.sh(f'run-as rl.launch {cmd}')
 
     def pwd(self, cmd: str = '') -> __ShResult:
-        return self.sh(f'cd "{sdcard}" && {cmd} {'' if cmd == '' else ';'}pwd')
+        sr = self.sh(f'cd "{sdcard}" && {cmd} {'' if cmd == '' else ';'}pwd')
+        lines = sr.output.splitlines()
+        lines[-1] = lines[-1].replace('//', '/')
+        sr.output = '\n'.join(lines)
+        return sr
 
     def exists(self, path: str) -> bool:
         return self.sh(f'[[ -e "{path}" ]]').succeed
@@ -76,13 +80,65 @@ class U:
         except ValueError:
             return 0
 
+    @staticmethod
+    def visual_size(length) -> str:
+        i = 0
+        while length >= 1024:
+            length /= 1024
+            i += 1
+
+        if length - int(length) == 0:
+            length = int(length)
+        else:
+            length = round(length, 2)
+
+        return f'{length}{['B', 'KB', 'MB', 'GB'][i]}'
+
+
+sdcard = ''
+
+
+def shell_mode(is_push: bool):
+    global sdcard
+    while True:
+        try:
+            cmd = input(f'{sdcard} > ')
+
+            if cmd.endswith('\\'):
+                print('命令不能以 "\\" 結尾')
+
+            elif cmd.startswith('size '):
+                path = d.pwd(f'cd {cmd.lstrip('size ').strip().strip('"').strip("'")}').output
+                path += ('/' if path == '/sdcard' else '')
+                size = U.remote_size(path)
+                print(f'{U.visual_size(size)} ({size}B)')
+
+            elif cmd == 'ok' and is_push:
+                hd = U.sha256(f'{sdcard}{time.time()}')
+                if d.pwd(f'touch {hd}; rm {hd}').succeed:
+                    break
+                else:
+                    print('只能Push至 "/sdcard/..."')
+
+            elif cmd in ['clear', 'cls']:
+                os.system('cls' if os.name == 'nt' else 'clear')
+
+            else:
+                out = d.pwd(cmd).output.splitlines()
+                sdcard = out.pop()
+                for o in out:
+                    print(o)
+
+        except KeyboardInterrupt:
+            print('KeyboardInterrupt')
+
 
 async def async_tqdm():
     # Requires global var "total_size: int" "monitor: Callable[[], int]"
     counter = 0
     with tqdm(total=total_size, unit='B', unit_scale=True, unit_divisor=1024) as pbar:
         while counter < total_size:
-            n = monitor() - counter
+            n = monitor_fun() - counter
             counter += n
             pbar.update(n)
 
@@ -128,7 +184,7 @@ if not argv:
     dst_s = [op.basename(src) for src in src_s]
 
 
-    def monitor() -> int:
+    def monitor_fun() -> int:
         return sum(U.local_size(dst) for dst in dst_s)
 
 
@@ -142,6 +198,9 @@ if not argv:
             for r, _, fs in os.walk(dst):
                 [os.remove(op.join(r, f)) for f in fs if f.startswith('.trashed')]
         d.runas('touch ./files/key_b')
+
+elif argv[-1] == '-':
+    shell_mode(False)
 
 else:
     print('選擇Push目的地')
@@ -169,27 +228,7 @@ else:
 
     if chosen in ['3', '4']:
         print('\n"ok" 選擇當前目錄；可以使用shell命令')
-        while True:
-            cmd = input(f'{sdcard} > ')
-
-            if cmd.endswith('\\'):
-                print('命令不能以 "\\" 結尾')
-
-            elif cmd == 'ok':
-                hd = U.sha256(f'{sdcard}{time.time()}')
-                if d.pwd(f'touch {hd}; rm {hd}').succeed:
-                    break
-                else:
-                    print('只能Push至 "/sdcard/..."')
-
-            elif cmd in ['clear', 'cls']:
-                os.system('cls' if os.name == 'nt' else 'clear')
-
-            else:
-                out = d.pwd(cmd).output.splitlines()
-                sdcard = out.pop().replace('//', '/')
-                for o in out:
-                    print(o)
+        shell_mode(True)
 
     total_size = sum(U.local_size(a) for a in argv)
     hd = U.sha256(f'{time.time()}')
@@ -203,8 +242,8 @@ else:
         shutil.move(it, dst)
 
 
-    def monitor() -> int:
-        return U.remote_size(f'/sdcard/Download/{hd}')
+    def monitor_fun() -> int:
+        return U.remote_size(f'/sdcard/Download/{hd}/')
 
 
     def transfer_fun():
@@ -221,10 +260,11 @@ async def main():
     loop = asyncio.get_running_loop()
 
     with ThreadPoolExecutor() as pool:
+        print()
         transfer_task = loop.run_in_executor(pool, transfer_fun)
         await asyncio.gather(transfer_task, async_tqdm())
         completed_fun()
-        input('Press Enter to exit ...')
+        input('\nPress Enter to exit ...')
 
 
 asyncio.run(main())

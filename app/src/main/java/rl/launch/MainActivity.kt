@@ -64,9 +64,9 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         com.grant()
-        com.updateView()
-        if (intent.action !in arrayOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE))
-            com.genData(intent)
+        if (intent.action in arrayOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE))
+            intent.action = Intent.ACTION_MAIN
+        com.genData(intent)
     }
 
     override fun onRequestPermissionsResult(

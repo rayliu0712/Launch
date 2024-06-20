@@ -1,3 +1,3 @@
 ```python
-pip3 install adbutils tqdm 
+pip3 install adbutils tqdm
 ```
