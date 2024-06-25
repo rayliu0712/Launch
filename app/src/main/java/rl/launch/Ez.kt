@@ -10,7 +10,9 @@ import java.io.File
 
 object Ez {
     fun relPath(file: File): String =
-        "./" + file.absolutePath.replace("^${Environment.getExternalStorageDirectory().absolutePath}/".toRegex(), "")
+        "./" + file.absolutePath.replace(
+            "^${Environment.getExternalStorageDirectory().absolutePath}".toRegex(), ""
+        ).replace("/", "")
 
     fun specialLen(file: File): Long =
         if (file.isDirectory) -1 else file.length()

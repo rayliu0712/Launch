@@ -243,16 +243,14 @@ class Com(private val me: MainActivity) {
                 .show()
         }
 
-        for (i in 580 downTo 0) {
+        for (i in 29 downTo 0) {
             if (keyA.exists()) {
                 ui { connectDialog.dismiss() }
                 return true
             }
             if (exit) break
 
-            delay(50)
-            if (i % 20 == 0)
-                ui { connectDialog.setTitle("與Server連接中 (${i / 20}s)") }
+            ui { connectDialog.setTitle("與Server連接中 (${i}s)") }
         }
 
         launchFile.delete()
@@ -270,7 +268,7 @@ class Com(private val me: MainActivity) {
         ui {
             waitDialog = Ez.dialog(me)
                 .setTitle("Launching (0s)")
-                .setMessage("結束前請不要關閉應用程式")
+                .setMessage("耐心等待 . . .")
                 .show()
         }
 
