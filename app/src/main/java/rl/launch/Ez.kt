@@ -61,5 +61,4 @@ object Ez {
             .setTitle("沒有啟用ADB :(")
             .setPositiveButton("SETTINGS") { _, _ -> me.apply { action() } }
             .show()!!
-
 }

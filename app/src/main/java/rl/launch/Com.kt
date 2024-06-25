@@ -63,7 +63,8 @@ class Com(private val me: MainActivity) {
             if (it.rotation == 45f) {
                 dialog.setTitle("\uD83C\uDF82\uD83C\uDF82\uD83C\uDF82")
                 date.text = me.getString(R.string.birthday)
-            } else {
+            }
+            else {
                 dialog.setTitle("關於Launch")
                 date.text = me.getString(R.string.last_modified_date)
             }
@@ -87,7 +88,8 @@ class Com(private val me: MainActivity) {
                 )
                 Ez.permissionDialog(me) { startActivity(intent) }
             }
-        } else {
+        }
+        else {
             val read = ContextCompat.checkSelfPermission(me, READ_EXTERNAL_STORAGE)
             val write = ContextCompat.checkSelfPermission(me, WRITE_EXTERNAL_STORAGE)
             if (read == PackageManager.PERMISSION_DENIED || write == PackageManager.PERMISSION_DENIED) {
@@ -130,7 +132,7 @@ class Com(private val me: MainActivity) {
         fileIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
 
         val dialog = Ez.dialog(me, true)
-            .setTitle("File or Folder(Android 5.0+) ?")
+            .setTitle("File or Folder ?")
             .setPositiveButton("FILE")
             { _, _ -> me.startActivityForResult(fileIntent, 0) }
 
