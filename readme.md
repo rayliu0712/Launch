@@ -2,4 +2,4 @@
 
 ## Launch Requirement
 
-* **Android 4.4 +**
+* **Android 5.0 +**

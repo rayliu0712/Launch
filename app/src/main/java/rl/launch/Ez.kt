@@ -4,8 +4,6 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.net.Uri
 import android.os.Environment
-import android.util.Log
-import android.widget.Toast
 import java.io.File
 
 object Ez {
@@ -55,18 +53,13 @@ object Ez {
     fun permissionDialog(me: MainActivity, action: MainActivity.() -> Unit): AlertDialog =
         dialog(me)
             .setTitle("沒有權限 :(")
-            .setPositiveButton("GRANT") { _, _ -> me.action() }
+            .setPositiveButton("GRANT") { _, _ -> me.apply { action() } }
             .show()!!
 
     fun adbDialog(me: MainActivity, action: MainActivity.() -> Unit): AlertDialog =
         dialog(me)
             .setTitle("沒有啟用ADB :(")
-            .setPositiveButton("SETTINGS") { _, _ -> me.action() }
+            .setPositiveButton("SETTINGS") { _, _ -> me.apply { action() } }
             .show()!!
 
-    fun toast(me: MainActivity, vararg msg: Any) =
-        Toast.makeText(me, msg.joinToString { "$it" }, Toast.LENGTH_SHORT).show()
-
-    fun log(vararg msg: Any) =
-        Log.d("666", msg.joinToString { "$it" })
 }
