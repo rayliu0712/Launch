@@ -221,7 +221,7 @@ class Com(private val me: MainActivity) {
 
     fun launchEvent() {
         launchFile.writeText("${pending.sumOf { Ez.length(it) }}\n" +
-                pending.joinToString("\n") { it.absolutePath })
+                pending.joinToString("\n") { "${it.absolutePath}\t${if (it.isDirectory) "1" else "0"}" })
 
         CoroutineScope(Dispatchers.IO).launch {
             if (connectServer())
@@ -248,6 +248,7 @@ class Com(private val me: MainActivity) {
             }
             if (exit) break
 
+            delay(1000)
             ui { connectDialog.setTitle("與Server連接中 (${i}s)") }
         }
 
