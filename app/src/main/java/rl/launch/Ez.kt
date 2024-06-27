@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.net.Uri
 import android.os.Environment
+import android.util.Log
 import java.io.File
 
 object Ez {
@@ -61,4 +62,7 @@ object Ez {
             .setTitle("沒有啟用ADB :(")
             .setPositiveButton("SETTINGS") { _, _ -> me.apply { action() } }
             .show()!!
+
+    fun log(vararg msgs: Any) =
+        Log.d("666", msgs.joinToString())
 }
