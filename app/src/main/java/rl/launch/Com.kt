@@ -42,13 +42,6 @@ class Com(private val me: MainActivity) {
             else "$count Files"
     }
 
-    fun setBtnEnable(isEnable: Boolean) {
-        me.binding.clearBtn.isEnabled = isEnable
-        me.binding.pickBtn.isEnabled = isEnable
-        me.binding.aboutBtn.isEnabled = isEnable
-        me.binding.launchBtn.isEnabled = isEnable && pending.isNotEmpty()
-    }
-
     fun about() {
         val aboutLayout = me.layoutInflater.inflate(R.layout.about_layout, null)
         val icon = aboutLayout.findViewById<ImageView>(R.id.icon)
@@ -254,7 +247,6 @@ class Com(private val me: MainActivity) {
 
         launchFile.delete()
         ui {
-            setBtnEnable(true)
             connectDialog.dismiss()
             if (!exit)
                 Ez.warnDialog(me, "連接失敗", "請檢查Server是否啟動和USB連接設定")
@@ -280,7 +272,6 @@ class Com(private val me: MainActivity) {
         clear()
         ui {
             updateView()
-            setBtnEnable(true)
             waitDialog.setMessage("完成 !")
             waitDialog.setCancelable(true)
         }

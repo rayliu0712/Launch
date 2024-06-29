@@ -54,7 +54,6 @@ class MainActivity : AppCompatActivity() {
             com.pick()
         }
         binding.launchBtn.setOnClickListener {
-            com.setBtnEnable(false)
             com.launchEvent()
         }
 
